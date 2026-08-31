@@ -1,0 +1,61 @@
+(function(root,factory){
+ const api=factory();
+ if(typeof module==="object"&&module.exports)module.exports=api;
+ root.SpanishFlashcardsAnswers=api;
+})(typeof self!=="undefined"?self:this,function(){
+ "use strict";
+ function normalizeAnswer(value){
+  return String(value??"").toLocaleLowerCase().trim().normalize("NFD")
+   .replace(/[\u0300-\u036f]/g,"")
+   .replace(/['’\-‐‑‒–—]/g,"")
+   .replace(/[^\p{L}\p{N}\s]/gu," ")
+   .replace(/\s+/g," ").trim()
+ }
+ function answerVariants(value){return String(value??"").split(/\s*\/\s*/).map(normalizeAnswer).filter(Boolean)}
+ function exactAnswerMatches(given,expected){
+  const givenVariants=answerVariants(given),expectedVariants=answerVariants(expected);
+  return givenVariants.some(g=>expectedVariants.includes(g))
+ }
+ function editDistance(a,b){
+  if(a===b)return 0;
+  if(!a.length)return b.length;
+  if(!b.length)return a.length;
+  let previous=Array.from({length:b.length+1},(_,i)=>i);
+  for(let i=1;i<=a.length;i++){
+   const current=[i];
+   for(let j=1;j<=b.length;j++)current[j]=Math.min(current[j-1]+1,previous[j]+1,previous[j-1]+(a[i-1]===b[j-1]?0:1));
+   previous=current
+  }
+  return previous[b.length]
+ }
+ function isConservativeSpeechMatch(given,expected){
+  if(given===expected)return true;
+  const longest=Math.max(given.length,expected.length);
+  const limit=longest>=14?2:longest>=6?1:0;
+  return limit>0&&Math.abs(given.length-expected.length)<=limit&&editDistance(given,expected)<=limit
+ }
+ function spokenAnswerMatches(alternatives,expected){
+  const heard=(Array.isArray(alternatives)?alternatives:[alternatives]).flatMap(answerVariants);
+  const expectedVariants=answerVariants(expected);
+  return heard.some(given=>expectedVariants.some(answer=>isConservativeSpeechMatch(given,answer)))
+ }
+ function recognitionAlternatives(event){
+  const segments=[];
+  const results=event&&event.results;
+  if(!results)return [];
+  for(let i=event.resultIndex||0;i<results.length;i++){
+   const result=results[i],choices=[];
+   for(let j=0;j<result.length;j++)if(result[j]&&result[j].transcript)choices.push(result[j].transcript.trim());
+   if(choices.length)segments.push(choices)
+  }
+  if(!segments.length)return [];
+  const heard=segments.flat();
+  if(segments.length>1){
+   const maxChoices=Math.max(...segments.map(s=>s.length));
+   for(let i=0;i<maxChoices;i++)heard.push(segments.map(s=>s[i]||s[0]).join(" "))
+  }
+  return [...new Set(heard.filter(Boolean))]
+ }
+ function answerLocale(direction){return direction==="en-es"?"es-ES":"en-US"}
+ return{normalizeAnswer,answerVariants,exactAnswerMatches,editDistance,spokenAnswerMatches,recognitionAlternatives,answerLocale}
+});

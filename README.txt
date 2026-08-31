@@ -30,7 +30,12 @@ the iPhone and laptop because the app has no account or server-side database.
 SPEECH MODE
 Speech recognition depends on browser/OS support and permission. If unavailable, the app
 automatically presents a typed-answer fallback. Recognition errors can be overridden with
-"That's what I said" so they do not incorrectly hurt spaced-repetition progress.
+"That's what I said" so they do not incorrectly hurt spaced-repetition progress. Microphone
+and recognition-service failures do not count as missed answers and can be retried.
+
+SKIPPING A CARD
+Every answer mode includes "Skip / I don't know." A skip reveals the answer and records the
+same spaced-repetition miss as an incorrect answer, so that card is shown more often.
 
 PRIVACY
 There is no analytics, account, advertising, or remote database in this build. Flash-card
