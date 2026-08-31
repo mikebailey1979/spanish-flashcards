@@ -1,5 +1,5 @@
 "use strict";
-const {exactAnswerMatches:correct,spokenAnswerMatches,recognitionAlternatives,answerLocale}=window.SpanishFlashcardsAnswers;
+const {exactAnswerMatches:correct,spokenAnswerMatches,recognitionAlternatives,answerLocale,numberWordsEN,numberAnswerVariants}=window.SpanishFlashcardsAnswers;
 const BASE = [["contesta", "answer", "Instructions"], ["debajo", "underneath", "Instructions"], ["di", "say", "Instructions"], ["empareja", "pair / match", "Instructions"], ["encierra", "circle", "Instructions"], ["escribe", "write", "Instructions"], ["haz", "do / make", "Instructions"], ["imagínate", "imagine", "Instructions"], ["lee", "read", "Instructions"], ["llena", "fill", "Instructions"], ["marca", "mark", "Instructions"], ["mejor", "best", "Instructions"], ["opuesto", "opposite", "Instructions"], ["oración", "sentence", "Instructions"], ["palabra", "word", "Instructions"], ["párrafo", "paragraph", "Instructions"], ["pregúntale", "ask", "Instructions"], ["presta atención", "pay attention", "Instructions"], ["respuesta", "answer", "Instructions"], ["selecciona", "select", "Instructions"], ["siguiente", "following / next", "Instructions"], ["subrayado", "underlined", "Instructions"], ["sujeto", "subject", "Instructions"], ["sustantivo", "noun", "Instructions"], ["el director / la directora de la escuela", "school principal", "People"], ["el hombre", "man", "People"], ["el maestro / la maestra", "teacher", "People"], ["la mujer", "woman", "People"], ["alto / alta", "tall", "Descriptions"], ["bajo / baja", "short", "Descriptions"], ["pelirrojo / pelirroja", "red-haired", "Descriptions"], ["rubio / rubia", "blond", "Descriptions"], ["artístico / artística", "artistic", "Descriptions"], ["atlético / atlética", "athletic", "Descriptions"], ["bonito / bonita", "handsome / pretty", "Descriptions"], ["cómico / cómica", "funny", "Descriptions"], ["desorganizado / desorganizada", "disorganized", "Descriptions"], ["estudioso / estudiosa", "studious", "Descriptions"], ["organizado / organizada", "organized", "Descriptions"], ["perezoso / perezosa", "lazy", "Descriptions"], ["serio / seria", "serious", "Descriptions"], ["simpático / simpática", "nice", "Descriptions"], ["trabajador / trabajadora", "hardworking", "Descriptions"], ["almorzar", "to eat lunch", "Activities"], ["beber refrescos", "to have soft drinks", "Activities"], ["escribir correos electrónicos", "to write e-mails", "Activities"], ["escuchar música", "to listen to music", "Activities"], ["estudiar", "to study", "Activities"], ["ir de compras", "to go shopping", "Activities"], ["jugar al fútbol", "to play soccer", "Activities"], ["leer un libro", "to read a book", "Activities"], ["mirar la televisión", "to watch television", "Activities"], ["pasar un rato con los amigos", "to spend time with friends", "Activities"], ["practicar deportes", "to practice / play sports", "Activities"], ["la biblioteca", "library", "Places"], ["el café", "café", "Places"], ["la cafetería", "cafeteria", "Places"], ["la casa del amigo", "friend's house", "Places"], ["el centro", "center / downtown", "Places"], ["el centro comercial", "shopping center / mall", "Places"], ["el cine", "movie theater / the movies", "Places"], ["la clase", "class / classroom", "Places"], ["el concierto", "concert", "Places"], ["la escuela", "school", "Places"], ["el estadio", "stadium", "Places"], ["la fiesta", "party", "Places"], ["el gimnasio", "gymnasium", "Places"], ["la oficina", "office", "Places"], ["el parque", "park", "Places"], ["el partido de básquetbol", "basketball game", "Places"], ["el partido de béisbol", "baseball game", "Places"], ["el partido de fútbol", "soccer game", "Places"], ["la piscina", "pool", "Places"], ["el restaurante", "restaurant", "Places"], ["el teatro", "theater", "Places"], ["la tienda", "store", "Places"], ["el almuerzo", "lunch", "Food"], ["la carne", "meat", "Food"], ["la cena", "dinner", "Food"], ["la comida", "food", "Food"], ["el desayuno", "breakfast", "Food"], ["la ensalada", "salad", "Food"], ["los frijoles", "beans", "Food"], ["la fruta", "fruit", "Food"], ["la hamburguesa", "hamburger", "Food"], ["la manzana", "apple", "Food"], ["la naranja", "orange", "Food"], ["el pescado", "fish", "Food"], ["el pollo", "chicken", "Food"], ["el postre", "dessert", "Food"], ["el sándwich", "sandwich", "Food"], ["las verduras", "vegetables", "Food"], ["alegre", "happy", "Feelings"], ["bien", "well / fine", "Feelings"], ["cansado / cansada", "tired", "Feelings"], ["contento / contenta", "happy", "Feelings"], ["deprimido / deprimida", "depressed", "Feelings"], ["emocionado / emocionada", "excited", "Feelings"], ["enfermo / enferma", "sick", "Feelings"], ["enojado / enojada", "angry", "Feelings"], ["mal", "bad", "Feelings"], ["más o menos", "so-so", "Feelings"], ["nervioso / nerviosa", "nervous", "Feelings"], ["ocupado / ocupada", "busy", "Feelings"], ["regular", "okay", "Feelings"], ["tranquilo / tranquila", "calm", "Feelings"], ["triste", "sad", "Feelings"], ["calor", "hot", "Feelings"], ["frío", "cold", "Feelings"], ["hambre", "hungry", "Feelings"], ["miedo", "scared", "Feelings"], ["razón", "right", "Feelings"], ["sed", "thirsty", "Feelings"], ["yo", "I", "Pronouns"], ["tú", "you (informal)", "Pronouns"], ["usted", "you (formal)", "Pronouns"], ["él", "he", "Pronouns"], ["ella", "she", "Pronouns"], ["nosotros / nosotras", "we", "Pronouns"], ["vosotros / vosotras", "you all (informal)", "Pronouns"], ["ustedes", "you all / you (plural formal)", "Pronouns"], ["ellos", "they (masculine / mixed)", "Pronouns"], ["ellas", "they (feminine)", "Pronouns"], ["el / la / los / las", "the", "Articles"], ["un / una / unos / unas", "a / some", "Articles"], ["lunes", "Monday", "Days"], ["martes", "Tuesday", "Days"], ["miércoles", "Wednesday", "Days"], ["jueves", "Thursday", "Days"], ["viernes", "Friday", "Days"], ["sábado", "Saturday", "Days"], ["domingo", "Sunday", "Days"], ["enero", "January", "Months"], ["febrero", "February", "Months"], ["marzo", "March", "Months"], ["abril", "April", "Months"], ["mayo", "May", "Months"], ["junio", "June", "Months"], ["julio", "July", "Months"], ["agosto", "August", "Months"], ["septiembre", "September", "Months"], ["octubre", "October", "Months"], ["noviembre", "November", "Months"], ["diciembre", "December", "Months"], ["la primavera", "spring", "Seasons"], ["el verano", "summer", "Seasons"], ["el otoño", "fall / autumn", "Seasons"], ["el invierno", "winter", "Seasons"]].map((x,i)=>({id:"v"+i,es:x[0],en:x[1],cat:x[2]}));
 const ones=["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez","once","doce","trece","catorce","quince"];
 function numES(n){
@@ -17,7 +17,7 @@ const keyNums=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,
 const NUMS=keyNums.map(n=>({id:"n"+n,es:numES(n),en:String(n),cat:"Numbers"}));
 const ALL=[...BASE,...NUMS], byId=Object.fromEntries(ALL.map(x=>[x.id,x]));
 const $=id=>document.getElementById(id), card=$("card"), controls=$("controls"), feedback=$("feedback");
-let progress=JSON.parse(localStorage.getItem("spanishProgressV1")||"{}"), current=null, dir="es-en", mode="type", answered=false, activeRecognition=null, speechWatchdog=null, resultTimer=null;
+let progress=JSON.parse(localStorage.getItem("spanishProgressV1")||"{}"), current=null, dir="es-en", mode="type", answered=false, activeRecognition=null, speechWatchdog=null, resultTimer=null, confettiTimer=null, confettiLayer=null;
 function rec(id){return progress[id]||{right:0,wrong:0,streak:0,last:0,box:0}}
 function weight(x){let r=rec(x.id), age=(Date.now()-r.last)/86400000; return 1+(r.wrong*2.2)+(r.right===0?4:0)+Math.min(age,4)-Math.min(r.box*1.2,5)}
 function pick(){let pool=ALL.map(x=>({x,w:Math.max(.25,weight(x))})),sum=pool.reduce((a,b)=>a+b.w,0),z=Math.random()*sum;for(const p of pool){z-=p.w;if(z<=0)return p.x}return pool[0].x}
@@ -31,23 +31,32 @@ function distractors(answer){
 function newCard(){
  stopRecognition();clearResultTimer();answered=false;card.className="card";feedback.replaceChildren();feedback.className="feedback";current=pick();dir=Math.random()<.5?"es-en":"en-es";
  mode=["type","choice","speak"][Math.floor(Math.random()*3)];card.classList.add("mode-"+mode);
- const prompt=dir==="es-en"?current.es:current.en, answer=dir==="es-en"?current.en:current.es;
+ const prompt=dir==="es-en"?current.es:current.cat==="Numbers"?numberWordsEN(current.en):current.en, answer=dir==="es-en"?current.en:current.es, accepted=current.cat==="Numbers"?numberAnswerVariants(current.es,current.en,dir):answer;
  $("category").textContent=current.cat;$("mode").textContent=mode==="type"?"Type":mode==="choice"?"Multiple choice":"Speak";
- $("direction").textContent=dir==="es-en"?"Spanish → English":"English → Spanish";$("prompt").textContent=prompt;$("answer").textContent=answer;$("pair").textContent=prompt+"  ↔  "+answer;
- renderControls(answer);updateStats()
+ $("direction").textContent=dir==="es-en"?"Spanish → English":"English → Spanish";$("prompt").textContent=prompt;$("answer").textContent=accepted;$("pair").textContent=prompt+"  ↔  "+accepted;
+ renderControls(answer,accepted);updateStats()
 }
-function renderControls(answer){
+function renderControls(answer,accepted){
  controls.innerHTML="";
  if(mode==="type"){
   controls.innerHTML='<form class="inputrow" id="form"><input id="entry" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Your answer"><button class="primary">Check</button></form>';
-  $("form").onsubmit=e=>{e.preventDefault();grade(correct($("entry").value,answer))};setTimeout(()=>$("entry").focus(),80)
+  $("form").onsubmit=e=>{e.preventDefault();grade(correct($("entry").value,accepted))};setTimeout(()=>$("entry").focus(),80)
  } else if(mode==="choice"){
-  let d=document.createElement("div");d.className="choices";distractors(answer).forEach(v=>{let b=document.createElement("button");b.className="choice";b.textContent=v;b.onclick=()=>grade(correct(v,answer));d.appendChild(b)});controls.appendChild(d)
- } else renderSpeech(answer);
+  let d=document.createElement("div");d.className="choices";distractors(answer).forEach(v=>{let b=document.createElement("button");b.className="choice";b.textContent=v;b.onclick=()=>grade(correct(v,accepted));d.appendChild(b)});controls.appendChild(d)
+ } else renderSpeech(accepted);
  appendSkipControl()
 }
 function appendSkipControl(){let b=document.createElement("button");b.className="skip";b.type="button";b.textContent="Skip / I don’t know";b.onclick=()=>grade(false,{skipped:true});controls.appendChild(b)}
-function clearResultTimer(){if(resultTimer){clearTimeout(resultTimer);resultTimer=null}}
+function clearResultTimer(){
+ if(resultTimer){clearTimeout(resultTimer);resultTimer=null}
+ if(confettiTimer){clearTimeout(confettiTimer);confettiTimer=null}
+ if(confettiLayer){confettiLayer.remove();confettiLayer=null}
+}
+function launchConfetti(){
+ const colors=["#20a45b","#f4c542","#ef6b57","#5b8def","#a66dd4"];clearResultTimer();confettiLayer=document.createElement("div");confettiLayer.className="confettiBurst";confettiLayer.setAttribute("aria-hidden","true");
+ for(let i=0;i<34;i++){let piece=document.createElement("i");piece.className="confettiPiece";piece.style.background=colors[i%colors.length];piece.style.setProperty("--x",Math.round((Math.random()-.5)*680)+"px");piece.style.setProperty("--y",Math.round(-180+Math.random()*620)+"px");piece.style.setProperty("--r",Math.round((Math.random()-.5)*1100)+"deg");piece.style.setProperty("--d",(Math.random()*.18).toFixed(2)+"s");confettiLayer.appendChild(piece)}
+ document.body.appendChild(confettiLayer);confettiTimer=setTimeout(()=>{if(confettiLayer){confettiLayer.remove();confettiLayer=null}confettiTimer=null},1400)
+}
 function clearSpeechWatchdog(){if(speechWatchdog){clearTimeout(speechWatchdog);speechWatchdog=null}}
 function stopRecognition(){
  clearSpeechWatchdog();const r=activeRecognition;activeRecognition=null;
@@ -82,10 +91,13 @@ function renderSpeech(answer){
 }
 function grade(ok,{skipped=false}={}){
  if(answered)return;answered=true;stopRecognition();clearResultTimer();save(current.id,ok);updateStats();
- if(skipped){feedback.textContent="Skipped — review the answer";feedback.className="feedback bad";card.classList.add("flipped");return}
- feedback.innerHTML=ok?'<span class="resultMark" aria-hidden="true">✓</span><span class="resultText">Correct!</span>':'<span class="resultMark" aria-hidden="true">×</span><span class="resultText">Incorrect, but keep trying!</span>';
+ if(skipped){feedback.textContent="Skipped — review the answer";feedback.className="feedback bad";card.classList.add("revealed");return}
+ let resultAnswer=document.createElement("span");resultAnswer.className="resultAnswer";resultAnswer.textContent=$("answer").textContent;
+ let resultMark=document.createElement("span");resultMark.className="resultMark";resultMark.setAttribute("aria-hidden","true");resultMark.textContent=ok?"✓":"×";
+ let resultText=document.createElement("span");resultText.className="resultText";resultText.textContent=ok?"Correct!":"Incorrect, but keep trying!";feedback.replaceChildren(resultAnswer,resultMark,resultText);
  feedback.className="feedback result "+(ok?"good":"bad");
- resultTimer=setTimeout(()=>{card.classList.add("flipped");resultTimer=null},ok?1250:1150)
+ if(ok)launchConfetti();
+ resultTimer=setTimeout(()=>{card.classList.add("revealed");resultTimer=null},ok?1250:1150)
 }
 $("next").onclick=newCard;$("reset").onclick=()=>{if(confirm("Reset all saved flash-card progress?")){progress={};localStorage.removeItem("spanishProgressV1");newCard()}};
 if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).catch(()=>{}));

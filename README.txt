@@ -38,6 +38,14 @@ SKIPPING A CARD
 Every answer mode includes "Skip / I don't know." A skip reveals the answer and records the
 same spaced-repetition miss as an incorrect answer, so that card is shown more often.
 
+ANSWER REINFORCEMENT
+Correct and incorrect feedback shows the right answer before settling on a forward-facing
+answer card. Correct answers also trigger a brief confetti celebration.
+
+NUMBER ANSWERS
+Number cards accept both digits and written words: for example, ocho accepts 8 or eight, and
+an English five prompt accepts 5 or cinco.
+
 PRIVACY
 There is no analytics, account, advertising, or remote database in this build. Flash-card
 progress is stored in browser localStorage.

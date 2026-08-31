@@ -43,3 +43,13 @@ test("uses the locale of the answer language",()=>{
  assert.equal(answers.answerLocale("en-es"),"es-ES");
  assert.equal(answers.answerLocale("es-en"),"en-US")
 });
+
+test("accepts numeric and written number answers in either direction",()=>{
+ const englishEight=answers.numberAnswerVariants("ocho",8,"es-en");
+ assert.equal(answers.exactAnswerMatches("8",englishEight),true);
+ assert.equal(answers.exactAnswerMatches("eight",englishEight),true);
+ const spanishFive=answers.numberAnswerVariants("cinco",5,"en-es");
+ assert.equal(answers.exactAnswerMatches("5",spanishFive),true);
+ assert.equal(answers.exactAnswerMatches("cinco",spanishFive),true);
+ assert.equal(answers.exactAnswerMatches("one hundred and one",answers.numberAnswerVariants("ciento uno",101,"es-en")),true)
+});
