@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#123d2a"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Español Cards">
+<link rel="manifest" href="manifest.webmanifest"><title>Spanish Flash Cards</title>
+<style>
+:root{color-scheme:light dark;--bg:#f4f1e9;--panel:#fffdf7;--ink:#17211c;--muted:#66716a;--green:#123d2a;--green2:#1e6948;--line:#d9ddd7;--bad:#a13232;--good:#177047}
+@media(prefers-color-scheme:dark){:root{--bg:#101512;--panel:#18201b;--ink:#f2f4ef;--muted:#aab5ad;--line:#354039;--green:#72c79b;--green2:#8ed5ae;--bad:#ff8c8c;--good:#79d8a5}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,sans-serif;min-height:100dvh}
+button,input{font:inherit}.app{width:min(760px,100%);margin:auto;padding:max(18px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px}.brand{font-size:clamp(20px,5vw,28px);font-weight:850}.stats{font-size:12px;color:var(--muted);text-align:right}
+.progress{height:7px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:12px}.progress i{display:block;height:100%;background:var(--green2);transition:.3s}
+.meta{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:0 3px 9px}.scene{perspective:1200px}.card{position:relative;min-height:420px;transform-style:preserve-3d;transition:transform .48s;touch-action:manipulation}.card.flipped{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:26px;box-shadow:0 10px 30px #0001;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.back{transform:rotateY(180deg)}
+.label{text-transform:uppercase;letter-spacing:.13em;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:18px}.prompt,.answer{font-weight:850;font-size:clamp(29px,8vw,47px);line-height:1.08}.hint{color:var(--muted);margin-top:12px}.controls{width:min(520px,100%);margin-top:28px}.inputrow{display:flex;gap:8px}.inputrow input{min-width:0;flex:1;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:14px;padding:14px}
+button{cursor:pointer}.primary,.choice,.speak,.override{border-radius:14px;padding:14px 17px;font-weight:760}.primary,.speak{border:0;background:var(--green);color:white}.choices{display:grid;gap:9px}.choice,.override{background:var(--bg);color:var(--ink);border:1px solid var(--line);text-align:left}.feedback{height:28px;margin-top:13px;font-weight:850}.good{color:var(--good)}.bad{color:var(--bad)}
+.animGood{animation:good .38s}.animBad{animation:bad .38s}@keyframes good{50%{transform:scale(1.025)}}@keyframes bad{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.next{position:absolute;inset:0;border:0;background:transparent;z-index:5;display:none}.flipped .next{display:block}.footer{text-align:center;margin-top:13px}.small{border:0;background:transparent;color:var(--muted);padding:8px}.micstatus{color:var(--muted);margin-top:12px;font-size:14px}.override{margin-top:10px;text-align:center}
+</style></head><body><main class="app">
+<header><div class="brand">Español • Flash Cards</div><div class="stats" id="stats"></div></header>
+<div class="progress"><i id="progress"></i></div><div class="meta"><span id="category"></span><span id="mode"></span></div>
+<div class="scene"><section class="card" id="card">
+<div class="face front"><div class="label" id="direction"></div><div class="prompt" id="prompt"></div><div class="controls" id="controls"></div><div class="feedback" id="feedback"></div></div>
+<div class="face back"><div class="label">Answer</div><div class="answer" id="answer"></div><div class="hint" id="pair"></div><div class="hint">Tap anywhere for the next card</div></div>
+<button class="next" id="next" aria-label="Next card"></button></section></div>
+<div class="footer"><button class="small" id="reset">Reset progress</button></div></main>
+<script src="app.js" defer></script></body></html>

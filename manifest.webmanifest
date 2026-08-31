@@ -1,0 +1,9 @@
+{
+  "name": "Spanish Flash Cards",
+  "short_name": "Español Cards",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f1e9",
+  "theme_color": "#123d2a",
+  "description": "Adaptive English-Spanish flash cards."
+}
