@@ -17,7 +17,7 @@ const keyNums=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,
 const NUMS=keyNums.map(n=>({id:"n"+n,es:numES(n),en:String(n),cat:"Numbers"}));
 const ALL=[...BASE,...NUMS], byId=Object.fromEntries(ALL.map(x=>[x.id,x]));
 const $=id=>document.getElementById(id), card=$("card"), controls=$("controls"), feedback=$("feedback");
-let progress=JSON.parse(localStorage.getItem("spanishProgressV1")||"{}"), current=null, dir="es-en", mode="type", answered=false, speechMissTimer=null;
+let progress=JSON.parse(localStorage.getItem("spanishProgressV1")||"{}"), current=null, dir="es-en", mode="type", answered=false, activeRecognition=null, speechWatchdog=null, resultTimer=null;
 function rec(id){return progress[id]||{right:0,wrong:0,streak:0,last:0,box:0}}
 function weight(x){let r=rec(x.id), age=(Date.now()-r.last)/86400000; return 1+(r.wrong*2.2)+(r.right===0?4:0)+Math.min(age,4)-Math.min(r.box*1.2,5)}
 function pick(){let pool=ALL.map(x=>({x,w:Math.max(.25,weight(x))})),sum=pool.reduce((a,b)=>a+b.w,0),z=Math.random()*sum;for(const p of pool){z-=p.w;if(z<=0)return p.x}return pool[0].x}
@@ -29,8 +29,8 @@ function distractors(answer){
  same=[...new Set(same)].sort(()=>Math.random()-.5).slice(0,3);return [...same,answer].sort(()=>Math.random()-.5)
 }
 function newCard(){
- clearSpeechMissTimer();answered=false;card.className="card";feedback.textContent="";feedback.className="feedback";current=pick();dir=Math.random()<.5?"es-en":"en-es";
- mode=["type","choice","speak"][Math.floor(Math.random()*3)];
+ stopRecognition();clearResultTimer();answered=false;card.className="card";feedback.replaceChildren();feedback.className="feedback";current=pick();dir=Math.random()<.5?"es-en":"en-es";
+ mode=["type","choice","speak"][Math.floor(Math.random()*3)];card.classList.add("mode-"+mode);
  const prompt=dir==="es-en"?current.es:current.en, answer=dir==="es-en"?current.en:current.es;
  $("category").textContent=current.cat;$("mode").textContent=mode==="type"?"Type":mode==="choice"?"Multiple choice":"Speak";
  $("direction").textContent=dir==="es-en"?"Spanish → English":"English → Spanish";$("prompt").textContent=prompt;$("answer").textContent=answer;$("pair").textContent=prompt+"  ↔  "+answer;
@@ -47,22 +47,45 @@ function renderControls(answer){
  appendSkipControl()
 }
 function appendSkipControl(){let b=document.createElement("button");b.className="skip";b.type="button";b.textContent="Skip / I don’t know";b.onclick=()=>grade(false,{skipped:true});controls.appendChild(b)}
-function clearSpeechMissTimer(){if(speechMissTimer){clearTimeout(speechMissTimer);speechMissTimer=null}}
+function clearResultTimer(){if(resultTimer){clearTimeout(resultTimer);resultTimer=null}}
+function clearSpeechWatchdog(){if(speechWatchdog){clearTimeout(speechWatchdog);speechWatchdog=null}}
+function stopRecognition(){
+ clearSpeechWatchdog();const r=activeRecognition;activeRecognition=null;
+ if(r){r.onstart=null;r.onaudiostart=null;r.onspeechstart=null;r.onspeechend=null;r.onresult=null;r.onerror=null;r.onend=null;try{r.abort()}catch(e){}}
+}
+function appendSpeechTyping(answer){
+ let divider=document.createElement("div");divider.className="speechDivider";divider.textContent="or type your answer";
+ let form=document.createElement("form");form.className="inputrow";form.innerHTML='<input autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Type your spoken answer instead"><button class="primary">Check</button>';
+ form.onsubmit=e=>{e.preventDefault();grade(correct(form.querySelector("input").value,answer))};controls.append(divider,form)
+}
 function renderSpeech(answer){
  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!SR){controls.innerHTML='<div class="micstatus">Speech recognition is not available in this browser. Type this one instead.</div><form class="inputrow" id="form"><input id="entry" autocomplete="off"><button class="primary">Check</button></form>';$("form").onsubmit=e=>{e.preventDefault();grade(correct($("entry").value,answer))};return}
- let b=document.createElement("button");b.className="speak";b.textContent="Tap to speak";let s=document.createElement("div");s.className="micstatus";s.setAttribute("aria-live","polite");controls.append(b,s);
- b.onclick=()=>{clearSpeechMissTimer();controls.querySelectorAll(".override").forEach(o=>o.remove());let r=new SR(),hadResult=false,hadError=false;b.disabled=true;r.lang=answerLocale(dir);r.continuous=false;r.interimResults=false;r.maxAlternatives=5;s.textContent="Listening…";
- r.onresult=e=>{hadResult=true;let heard=recognitionAlternatives(e);s.textContent=heard.length?'Heard: '+heard.slice(0,3).map(h=>'“'+h+'”').join(" / "):"No speech was recognized. Tap to try again.";b.disabled=false;if(!heard.length)return;if(spokenAnswerMatches(heard,answer))grade(true);else{controls.querySelectorAll(".override").forEach(o=>o.remove());let o=document.createElement("button");o.className="override";o.type="button";o.textContent="That’s what I said";o.onclick=()=>grade(true);controls.insertBefore(o,controls.querySelector(".skip"));const cardAtAttempt=current;speechMissTimer=setTimeout(()=>{if(!answered&&current===cardAtAttempt)grade(false)},5000)}};
- r.onerror=e=>{hadError=true;b.disabled=false;const messages={"not-allowed":"Microphone permission was denied. Allow access, then tap to retry.","service-not-allowed":"Speech recognition is blocked. Check browser permissions or skip this card.","audio-capture":"No microphone is available. Connect one, retry, or skip this card.","no-speech":"No speech was heard. Tap to try again or skip this card.",network:"Speech recognition had a network problem. Tap to retry or skip."};s.textContent=messages[e.error]||"Speech recognition couldn’t start. Tap to retry or skip this card."};
- r.onend=()=>{b.disabled=false;if(!hadResult&&!hadError)s.textContent="No speech was heard. Tap to try again or skip this card."};
- try{r.start()}catch(e){hadError=true;b.disabled=false;s.textContent="Speech recognition couldn’t start. Tap to retry or skip this card."}}
+ let s=document.createElement("div");s.className="micstatus";s.setAttribute("aria-live","polite");
+ if(!SR){s.textContent="Speech recognition is not available here. Type your answer below or skip this card.";controls.appendChild(s);appendSpeechTyping(answer);return}
+ let b=document.createElement("button");b.className="speak";b.type="button";b.textContent="Tap to speak";s.textContent="Tap the microphone, or type your answer below.";controls.append(b,s);appendSpeechTyping(answer);
+ b.onclick=()=>{
+  stopRecognition();controls.querySelectorAll(".override").forEach(o=>o.remove());
+  const r=new SR(),cardAtAttempt=current;let hadResult=false,hadError=false,timedOut=false;activeRecognition=r;b.disabled=true;b.textContent="Listening…";s.textContent="Starting the microphone…";
+  const isCurrent=()=>current===cardAtAttempt&&!answered;
+  const finishIdle=(message)=>{clearSpeechWatchdog();if(activeRecognition===r)activeRecognition=null;b.disabled=false;b.textContent="Try microphone again";s.textContent=message};
+  r.lang=answerLocale(dir);r.continuous=false;r.interimResults=false;r.maxAlternatives=5;
+  r.onstart=()=>{if(isCurrent())s.textContent="Microphone on — say your answer."};
+  r.onaudiostart=()=>{if(isCurrent())s.textContent="Listening — say your answer now."};
+  r.onspeechstart=()=>{if(isCurrent())s.textContent="Got it — checking your answer…"};
+  r.onspeechend=()=>{try{r.stop()}catch(e){}};
+  r.onresult=e=>{if(!isCurrent())return;hadResult=true;clearSpeechWatchdog();if(activeRecognition===r)activeRecognition=null;b.disabled=false;b.textContent="Try microphone again";let heard=recognitionAlternatives(e);s.textContent=heard.length?'Heard: '+heard.slice(0,3).map(h=>'“'+h+'”').join(" / "):"Nothing came through. Try again or type your answer below.";if(!heard.length)return;if(spokenAnswerMatches(heard,answer))grade(true);else{let o=document.createElement("button");o.className="override";o.type="button";o.textContent="That’s what I said";o.onclick=()=>grade(true);controls.insertBefore(o,controls.querySelector(".speechDivider"));s.textContent+=' If that was correct, tap “That’s what I said.”'}};
+  r.onerror=e=>{if(!isCurrent()||timedOut)return;hadError=true;const messages={"not-allowed":"Microphone permission was denied. Allow microphone access, retry, type below, or skip.","service-not-allowed":"Speech recognition is blocked. Retry, type below, or skip.","audio-capture":"No microphone was found. Retry, type below, or skip.","no-speech":"No speech was heard. Retry or type your answer below.",network:"Speech recognition had a network problem. Retry or type below.",aborted:"Listening stopped. Retry or type your answer below."};finishIdle(messages[e.error]||"The microphone didn’t respond. Retry or type your answer below.")};
+  r.onend=()=>{if(!isCurrent()||hadResult||hadError||timedOut)return;finishIdle("Nothing came through. Try the microphone again or type your answer below.")};
+  speechWatchdog=setTimeout(()=>{if(!isCurrent()||activeRecognition!==r)return;timedOut=true;activeRecognition=null;try{r.abort()}catch(e){}finishIdle("The microphone didn’t respond. Try again or type your answer below.")},8000);
+  try{r.start()}catch(e){hadError=true;finishIdle("The microphone couldn’t start. Try again or type your answer below.")}
+ }
 }
 function grade(ok,{skipped=false}={}){
- if(answered)return;answered=true;clearSpeechMissTimer();save(current.id,ok);feedback.textContent=ok?"✓ Nice!":skipped?"Skipped — review the answer":"↻ Try again";feedback.className="feedback "+(ok?"good":"bad");
- if(skipped){card.classList.add("flipped");updateStats();return}
- card.classList.add(ok?"animGood":"animBad");
- setTimeout(()=>{card.classList.remove("animGood","animBad");card.classList.add("flipped");updateStats()},430)
+ if(answered)return;answered=true;stopRecognition();clearResultTimer();save(current.id,ok);updateStats();
+ if(skipped){feedback.textContent="Skipped — review the answer";feedback.className="feedback bad";card.classList.add("flipped");return}
+ feedback.innerHTML=ok?'<span class="resultMark" aria-hidden="true">✓</span><span class="resultText">Correct!</span>':'<span class="resultMark" aria-hidden="true">×</span><span class="resultText">Incorrect, but keep trying!</span>';
+ feedback.className="feedback result "+(ok?"good":"bad");
+ resultTimer=setTimeout(()=>{card.classList.add("flipped");resultTimer=null},ok?1250:1150)
 }
 $("next").onclick=newCard;$("reset").onclick=()=>{if(confirm("Reset all saved flash-card progress?")){progress={};localStorage.removeItem("spanishProgressV1");newCard()}};
 if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).catch(()=>{}));

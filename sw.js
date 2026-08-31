@@ -1,4 +1,4 @@
-const CACHE="espanol-cards-v4";const ASSETS=["./","./index.html","./answer-utils.js?v=4","./app.js?v=4","./manifest.webmanifest"];
+const CACHE="espanol-cards-v5";const ASSETS=["./","./index.html","./answer-utils.js?v=5","./app.js?v=5","./manifest.webmanifest"];
 self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener("fetch",e=>{

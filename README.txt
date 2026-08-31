@@ -28,10 +28,11 @@ Progress is stored locally in that browser/device. It does not automatically syn
 the iPhone and laptop because the app has no account or server-side database.
 
 SPEECH MODE
-Speech recognition depends on browser/OS support and permission. If unavailable, the app
-automatically presents a typed-answer fallback. Recognition errors can be overridden with
-"That's what I said" so they do not incorrectly hurt spaced-repetition progress. Microphone
-and recognition-service failures do not count as missed answers and can be retried.
+Speech recognition depends on browser/OS support and permission. The app always provides a
+typed-answer fallback on the same card. Recognition errors can be overridden with "That's what
+I said" so they do not incorrectly hurt spaced-repetition progress. Microphone and recognition-
+service failures do not count as missed answers and can be retried. If the browser stops
+responding, the microphone control automatically recovers after eight seconds.
 
 SKIPPING A CARD
 Every answer mode includes "Skip / I don't know." A skip reveals the answer and records the

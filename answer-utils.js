@@ -11,7 +11,23 @@
    .replace(/[^\p{L}\p{N}\s]/gu," ")
    .replace(/\s+/g," ").trim()
  }
- function answerVariants(value){return String(value??"").split(/\s*\/\s*/).map(normalizeAnswer).filter(Boolean)}
+ function splitAlternatives(value){
+  const parts=[];let part="",depth=0;
+  for(const char of String(value??"")){
+   if(char==="(")depth++;
+   if(char===")")depth=Math.max(0,depth-1);
+   if(char==="/"&&depth===0){parts.push(part);part=""}else part+=char
+  }
+  parts.push(part);return parts
+ }
+ function answerVariants(value){
+  const variants=[];
+  for(const part of splitAlternatives(value)){
+   variants.push(normalizeAnswer(part));
+   variants.push(normalizeAnswer(part.replace(/\s*\([^)]*\)/g,"")))
+  }
+  return [...new Set(variants.filter(Boolean))]
+ }
  function exactAnswerMatches(given,expected){
   const givenVariants=answerVariants(given),expectedVariants=answerVariants(expected);
   return givenVariants.some(g=>expectedVariants.includes(g))
@@ -57,5 +73,5 @@
   return [...new Set(heard.filter(Boolean))]
  }
  function answerLocale(direction){return direction==="en-es"?"es-ES":"en-US"}
- return{normalizeAnswer,answerVariants,exactAnswerMatches,editDistance,spokenAnswerMatches,recognitionAlternatives,answerLocale}
+ return{normalizeAnswer,splitAlternatives,answerVariants,exactAnswerMatches,editDistance,spokenAnswerMatches,recognitionAlternatives,answerLocale}
 });

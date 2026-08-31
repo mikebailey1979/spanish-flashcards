@@ -8,6 +8,19 @@ test("normalizes case, accents, punctuation, hyphens, and spacing",()=>{
  assert.equal(answers.exactAnswerMatches("e-mails","emails"),true)
 });
 
+test("accepts the core translation without a parenthetical qualifier",()=>{
+ assert.equal(answers.exactAnswerMatches("they","they (masculine / mixed)"),true);
+ assert.equal(answers.exactAnswerMatches("they","they (feminine)"),true);
+ assert.equal(answers.exactAnswerMatches("you","you (informal)"),true);
+ assert.equal(answers.exactAnswerMatches("mixed","they (masculine / mixed)"),false)
+});
+
+test("still accepts slash-separated answer alternatives",()=>{
+ assert.deepEqual(answers.splitAlternatives("they (masculine / mixed)"),["they (masculine / mixed)"]);
+ assert.equal(answers.exactAnswerMatches("downtown","center / downtown"),true);
+ assert.equal(answers.exactAnswerMatches("bonita","bonito / bonita"),true)
+});
+
 test("accepts September to septiembre from any recognition alternative",()=>{
  assert.equal(answers.spokenAnswerMatches(["septiembro","septiembre"],"septiembre"),true);
  assert.equal(answers.spokenAnswerMatches(["setiembre"],"septiembre"),true)
