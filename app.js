@@ -65,5 +65,5 @@ function grade(ok,{skipped=false}={}){
  setTimeout(()=>{card.classList.remove("animGood","animBad");card.classList.add("flipped");updateStats()},430)
 }
 $("next").onclick=newCard;$("reset").onclick=()=>{if(confirm("Reset all saved flash-card progress?")){progress={};localStorage.removeItem("spanishProgressV1");newCard()}};
-if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).catch(()=>{}));
 newCard();
