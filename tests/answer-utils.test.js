@@ -21,6 +21,18 @@ test("still accepts slash-separated answer alternatives",()=>{
  assert.equal(answers.exactAnswerMatches("bonita","bonito / bonita"),true)
 });
 
+test("accepts either or all correct alternatives joined naturally",()=>{
+ assert.equal(answers.exactAnswerMatches("lodging","lodging / accommodation"),true);
+ assert.equal(answers.exactAnswerMatches("accommodation","lodging / accommodation"),true);
+ assert.equal(answers.exactAnswerMatches("lodging and accommodation","lodging / accommodation"),true);
+ assert.equal(answers.exactAnswerMatches("lodging or accommodation","lodging / accommodation"),true);
+ assert.equal(answers.exactAnswerMatches("lodging / accommodation","lodging / accommodation"),true);
+ assert.equal(answers.exactAnswerMatches("bello y bella","bello / bella"),true);
+ assert.equal(answers.exactAnswerMatches("bello(a)","bello / bella"),true);
+ assert.equal(answers.exactAnswerMatches("lodging and elevator","lodging / accommodation"),false);
+ assert.equal(answers.exactAnswerMatches("lodging / elevator","lodging / accommodation"),false)
+});
+
 test("accepts September to septiembre from any recognition alternative",()=>{
  assert.equal(answers.spokenAnswerMatches(["septiembro","septiembre"],"septiembre"),true);
  assert.equal(answers.spokenAnswerMatches(["setiembre"],"septiembre"),true)
@@ -51,5 +63,7 @@ test("accepts numeric and written number answers in either direction",()=>{
  const spanishFive=answers.numberAnswerVariants("cinco",5,"en-es");
  assert.equal(answers.exactAnswerMatches("5",spanishFive),true);
  assert.equal(answers.exactAnswerMatches("cinco",spanishFive),true);
- assert.equal(answers.exactAnswerMatches("one hundred and one",answers.numberAnswerVariants("ciento uno",101,"es-en")),true)
+ const englishOneOhOne=answers.numberAnswerVariants("ciento uno",101,"es-en");
+ assert.equal(answers.exactAnswerMatches("one hundred and one",englishOneOhOne),true);
+ assert.equal(answers.exactAnswerMatches("one hundred",englishOneOhOne),false)
 });

@@ -11,14 +11,20 @@
    .replace(/[^\p{L}\p{N}\s]/gu," ")
    .replace(/\s+/g," ").trim()
  }
- function splitAlternatives(value){
-  const parts=[];let part="",depth=0;
-  for(const char of String(value??"")){
+ function splitAlternatives(value,wordConnectors=false){
+  const parts=[];let part="",depth=0,source=String(value??"");
+  for(let i=0;i<source.length;i++){
+   const char=source[i];
    if(char==="(")depth++;
    if(char===")")depth=Math.max(0,depth-1);
-   if(char==="/"&&depth===0){parts.push(part);part=""}else part+=char
+   if(depth===0){
+    if(char==="/"){parts.push(part);part="";continue}
+    const connector=wordConnectors&&source.slice(i).match(/^\s+(?:and\/or|or|and|y\/o|o|y)\s+/i);
+    if(connector){parts.push(part);part="";i+=connector[0].length-1;continue}
+   }
+   part+=char
   }
-  parts.push(part);return parts
+  parts.push(part);return parts.map(value=>value.trim()).filter(Boolean)
  }
  function answerVariants(value){
   const variants=[];
@@ -29,8 +35,14 @@
   return [...new Set(variants.filter(Boolean))]
  }
  function exactAnswerMatches(given,expected){
-  const givenVariants=answerVariants(given),expectedVariants=answerVariants(expected);
-  return givenVariants.some(g=>expectedVariants.includes(g))
+  const expectedVariants=answerVariants(expected),directMatch=part=>answerVariants(part).some(g=>expectedVariants.includes(g));
+  const partMatches=part=>{
+   if(directMatch(part))return true;
+   const joinedParts=splitAlternatives(part,true);
+   return joinedParts.length>1&&joinedParts.every(directMatch)
+  };
+  const givenParts=splitAlternatives(given);
+  return givenParts.length>0&&givenParts.every(partMatches)
  }
  function editDistance(a,b){
   if(a===b)return 0;
@@ -51,7 +63,11 @@
   return limit>0&&Math.abs(given.length-expected.length)<=limit&&editDistance(given,expected)<=limit
  }
  function spokenAnswerMatches(alternatives,expected){
-  const heard=(Array.isArray(alternatives)?alternatives:[alternatives]).flatMap(answerVariants);
+  const heard=(Array.isArray(alternatives)?alternatives:[alternatives]).flatMap(value=>{
+   const variants=answerVariants(value),joinedParts=splitAlternatives(value,true);
+   if(joinedParts.length>1)variants.push(...joinedParts.flatMap(answerVariants));
+   return variants
+  });
   const expectedVariants=answerVariants(expected);
   return heard.some(given=>expectedVariants.some(answer=>isConservativeSpeechMatch(given,answer)))
  }
