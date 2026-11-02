@@ -89,19 +89,5 @@
   return [...new Set(heard.filter(Boolean))]
  }
  function answerLocale(direction){return direction==="en-es"?"es-ES":"en-US"}
- function numberWordsEN(value){
-  const n=Number(value),small=["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"],tens=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
-  if(n<20)return small[n];
-  if(n<100)return tens[Math.floor(n/10)]+(n%10?" "+small[n%10]:"");
-  if(n<1000)return small[Math.floor(n/100)]+" hundred"+(n%100?" "+numberWordsEN(n%100):"");
-  if(n===1000)return"one thousand";
-  return String(value)
- }
- function numberAnswerVariants(spanish,numeric,direction){
-  const n=Number(numeric);
-  if(direction==="en-es")return spanish+" / "+n;
-  const written=numberWordsEN(n),withAnd=n>100&&n<1000&&n%100?written.replace(" hundred "," hundred and "):written;
-  return [...new Set([String(n),written,withAnd])].join(" / ")
- }
- return{normalizeAnswer,splitAlternatives,answerVariants,exactAnswerMatches,editDistance,spokenAnswerMatches,recognitionAlternatives,answerLocale,numberWordsEN,numberAnswerVariants}
+ return{normalizeAnswer,splitAlternatives,answerVariants,exactAnswerMatches,editDistance,spokenAnswerMatches,recognitionAlternatives,answerLocale}
 });

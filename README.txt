@@ -4,7 +4,7 @@ SPANISH FLASH CARDS
 WHAT'S INCLUDED
 - index.html — the app shell
 - vocabulary.js — the 51 reviewed vacation vocabulary pairs
-- app.js — number generation, spaced repetition, answer modes
+- app.js — spaced repetition and answer modes
 - manifest.webmanifest — installable web-app metadata
 - sw.js — offline caching after the first successful visit
 
@@ -47,10 +47,6 @@ VOCABULARY ANSWERS
 When a card lists alternatives, either correct form is accepted. Both forms are also accepted
 when joined with a slash, "or," or "and" (and the Spanish equivalents "o" or "y").
 
-NUMBER ANSWERS
-Number cards accept both digits and written words: for example, ocho accepts 8 or eight, and
-an English five prompt accepts 5 or cinco.
-
 PRIVACY
 There is no analytics, account, advertising, or remote database in this build. Flash-card
 progress is stored in browser localStorage.
@@ -64,6 +60,5 @@ DEPLOYING WITH GITHUB PAGES
 6. GitHub will provide the HTTPS Pages address. Send that address to the student.
 
 NOTE
-The 51 vocabulary pairs were transcribed and reviewed from the two supplied vacation-study
-pages. The number deck remains separate and emphasizes structural building blocks through
-1000 and representative compound numbers.
+The app contains only the 51 vocabulary pairs transcribed and reviewed from the two supplied
+vacation-study pages.

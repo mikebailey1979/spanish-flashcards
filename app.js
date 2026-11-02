@@ -1,32 +1,10 @@
 "use strict";
-const {exactAnswerMatches:correct,spokenAnswerMatches,recognitionAlternatives,answerLocale,numberWordsEN,numberAnswerVariants}=window.SpanishFlashcardsAnswers;
+const {exactAnswerMatches:correct,spokenAnswerMatches,recognitionAlternatives,answerLocale}=window.SpanishFlashcardsAnswers;
 const {VOCABULARY:BASE}=window.SpanishFlashcardsVocabulary;
-const PROGRESS_KEY="spanishProgressV2";
-const ones=["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez","once","doce","trece","catorce","quince"];
-function numES(n){
- if(n<16)return ones[n];
- if(n<20)return "dieci"+(["","seis","siete","ocho","nueve"][n-15]||"");
- if(n===20)return"veinte";
- if(n<30){const a=["","uno","dós","trés","cuatro","cinco","séis","siete","ocho","nueve"][n-20];return"veinti"+a;}
- const tens={30:"treinta",40:"cuarenta",50:"cincuenta",60:"sesenta",70:"setenta",80:"ochenta",90:"noventa"};
- if(n<100){let t=Math.floor(n/10)*10,r=n%10;return tens[t]+(r?" y "+ones[r]:"");}
- if(n===100)return"cien"; if(n===1000)return"mil";
- const hs={1:"ciento",2:"doscientos",3:"trescientos",4:"cuatrocientos",5:"quinientos",6:"seiscientos",7:"setecientos",8:"ochocientos",9:"novecientos"};
- let h=Math.floor(n/100),r=n%100; return hs[h]+(r?" "+numES(r):"");
-}
-const keyNums=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,40,50,60,70,80,90,100,101,110,125,200,300,400,500,600,700,800,900,999,1000];
-const NUMS=keyNums.map(n=>({id:"n"+n,es:numES(n),en:String(n),cat:"Numbers"}));
-const ALL=[...BASE,...NUMS], byId=Object.fromEntries(ALL.map(x=>[x.id,x]));
+const PROGRESS_KEY="spanishProgressV3";
+const ALL=[...BASE];
 const $=id=>document.getElementById(id), card=$("card"), controls=$("controls"), feedback=$("feedback");
-function loadProgress(){
- const saved=localStorage.getItem(PROGRESS_KEY);
- if(saved)return JSON.parse(saved);
- const legacy=JSON.parse(localStorage.getItem("spanishProgressV1")||"{}");
- const migrated=Object.fromEntries(Object.entries(legacy).filter(([id])=>id.startsWith("n")&&byId[id]));
- if(Object.keys(migrated).length)localStorage.setItem(PROGRESS_KEY,JSON.stringify(migrated));
- return migrated
-}
-let progress=loadProgress(), current=null, dir="es-en", mode="type", answered=false, activeRecognition=null, speechWatchdog=null, resultTimer=null, confettiTimer=null, confettiLayer=null;
+let progress=JSON.parse(localStorage.getItem(PROGRESS_KEY)||"{}"), current=null, dir="es-en", mode="type", answered=false, activeRecognition=null, speechWatchdog=null, resultTimer=null, confettiTimer=null, confettiLayer=null;
 function rec(id){return progress[id]||{right:0,wrong:0,streak:0,last:0,box:0}}
 function weight(x){let r=rec(x.id), age=(Date.now()-r.last)/86400000; return 1+(r.wrong*2.2)+(r.right===0?4:0)+Math.min(age,4)-Math.min(r.box*1.2,5)}
 function pick(){let pool=ALL.map(x=>({x,w:Math.max(.25,weight(x))})),sum=pool.reduce((a,b)=>a+b.w,0),z=Math.random()*sum;for(const p of pool){z-=p.w;if(z<=0)return p.x}return pool[0].x}
@@ -40,7 +18,7 @@ function distractors(answer){
 function newCard(){
  stopRecognition();clearResultTimer();answered=false;card.className="card";feedback.replaceChildren();feedback.className="feedback";current=pick();dir=Math.random()<.5?"es-en":"en-es";
  mode=["type","choice","speak"][Math.floor(Math.random()*3)];card.classList.add("mode-"+mode);
- const prompt=dir==="es-en"?current.es:current.cat==="Numbers"?numberWordsEN(current.en):current.en, answer=dir==="es-en"?current.en:current.es, accepted=current.cat==="Numbers"?numberAnswerVariants(current.es,current.en,dir):answer;
+ const prompt=dir==="es-en"?current.es:current.en, answer=dir==="es-en"?current.en:current.es, accepted=answer;
  $("category").textContent=current.cat;$("mode").textContent=mode==="type"?"Type":mode==="choice"?"Multiple choice":"Speak";
  $("direction").textContent=dir==="es-en"?"Spanish → English":"English → Spanish";$("prompt").textContent=prompt;$("answer").textContent=accepted;$("pair").textContent=prompt+"  ↔  "+accepted;
  renderControls(answer,accepted);updateStats()
