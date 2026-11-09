@@ -64,6 +64,16 @@ test("softDelete tombstones and bumps updatedAt", () => {
   assert.equal(c.updatedAt, c.deletedAt);
 });
 
+test("study-track helpers compose and decompose track ids", () => {
+  const own = "mike";
+  assert.equal(model.trackBaseUser(own), "mike");
+  assert.equal(model.trackTarget(own), null);
+  const t = model.makeTrack("mike", "aliyah");
+  assert.equal(t, "mike@as:aliyah");
+  assert.equal(model.trackBaseUser(t), "mike");
+  assert.equal(model.trackTarget(t), "aliyah");
+});
+
 test("enums are exposed", () => {
   assert.deepEqual([...model.ROLES], ["admin", "user"]);
   assert.deepEqual([...model.GRADES], ["again", "hard", "good", "easy"]);

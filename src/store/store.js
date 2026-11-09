@@ -96,7 +96,10 @@
         }
         const countOwn = !!(opts && opts.countEmulatedProgress);
         return {
-          studierId: countOwn ? currentUser.id : "preview:" + currentUser.id,
+          // Persisted emulation goes to the admin's OWN per-target track
+          // (`admin@as:target`) — separate from their own-content track and
+          // from every other emulation track, and never the target's real data.
+          studierId: countOwn ? model.makeTrack(currentUser.id, actingAs) : "preview:" + currentUser.id,
           persist: countOwn,
           contentOwnerId: actingAs,
           emulating: true,

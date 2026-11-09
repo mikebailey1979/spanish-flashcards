@@ -235,6 +235,28 @@
     return userId + ":" + cardId;
   }
 
+  // --- study-track ids -----------------------------------------------------
+  // A Progress/ReviewEvent `userId` is a *track id*, not always a User.id:
+  //  - a plain user id            → that user studying their own content
+  //  - `<adminId>@as:<targetId>`  → an admin's OWN persistent track for emulating
+  //                                 `targetId` (isolated from the target's real data)
+  const TRACK_SEP = "@as:";
+
+  /** @param {string} studierId @param {string} contentOwnerId @returns {string} */
+  function makeTrack(studierId, contentOwnerId) {
+    return studierId + TRACK_SEP + contentOwnerId;
+  }
+  /** Base user behind a track id (the admin, or the user themselves). @param {string} trackId @returns {string} */
+  function trackBaseUser(trackId) {
+    const i = trackId.indexOf(TRACK_SEP);
+    return i === -1 ? trackId : trackId.slice(0, i);
+  }
+  /** The emulated target of a track, or null for an own-content track. @param {string} trackId @returns {string|null} */
+  function trackTarget(trackId) {
+    const i = trackId.indexOf(TRACK_SEP);
+    return i === -1 ? null : trackId.slice(i + TRACK_SEP.length);
+  }
+
   /**
    * Mark a record changed (bumps updatedAt). Mutates and returns it.
    * @template {Syncable} T @param {T} rec @param {number} [now] @returns {T}
@@ -274,6 +296,10 @@
     createProgress,
     createReviewEvent,
     progressKey,
+    TRACK_SEP,
+    makeTrack,
+    trackBaseUser,
+    trackTarget,
     markUpdated,
     softDelete,
     isDeleted,

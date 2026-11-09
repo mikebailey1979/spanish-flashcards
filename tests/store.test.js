@@ -79,14 +79,49 @@ test("emulation never disturbs the emulated user's existing schedule", async () 
   assert.deepEqual(after.srs, before.srs);
 });
 
-test("opt-in emulated progress records under the ADMIN, never the emulated user", async () => {
+test("opt-in emulated progress uses a per-target track owned by the admin, never the emulated user", async () => {
   const { store, mike, aliyah, c1 } = await fixture();
+  const track = model.makeTrack(mike.id, aliyah.id);
   const ctx = store.studyContext(mike, { actingAsUserId: aliyah.id, countEmulatedProgress: true });
   assert.equal(ctx.persist, true);
-  assert.equal(ctx.studierId, mike.id);
+  assert.equal(ctx.studierId, track);
   await store.review(ctx, c1, "good", "type", T0);
-  assert.ok(await store.getProgress(mike.id, c1.id), "recorded under Mike");
-  assert.equal(await store.getProgress(aliyah.id, c1.id), null, "Aliyah untouched");
+  assert.ok(await store.getProgress(track, c1.id), "recorded on the mike@as:aliyah track");
+  assert.equal(await store.getProgress(mike.id, c1.id), null, "not on Mike's own-content track");
+  assert.equal(await store.getProgress(aliyah.id, c1.id), null, "Aliyah's real data untouched");
+});
+
+test("admin tracks are separate per target and from the admin's own track", async () => {
+  const { store, mike, aliyah } = await fixture();
+  // A second user B with their own card, plus a card Mike owns himself.
+  const userB = model.createUser({ email: "b@x.com", displayName: "Bea" }, T0);
+  await store.putUser(userB);
+  const deckB = model.createDeck({ ownerId: userB.id, name: "B deck" }, T0);
+  await store.putDeck(deckB);
+  const cB = model.createCard({ ownerId: userB.id, deckId: deckB.id, front: "uno", back: "one" }, T0);
+  await store.putCard(cB);
+  const deckM = model.createDeck({ ownerId: mike.id, name: "M deck" }, T0);
+  await store.putDeck(deckM);
+  const cM = model.createCard({ ownerId: mike.id, deckId: deckM.id, front: "dos", back: "two" }, T0);
+  await store.putCard(cM);
+  const aCard = (await store.listCards(aliyah.id))[0];
+
+  await store.review(store.studyContext(mike), cM, "good", "type", T0); // own track
+  await store.review(store.studyContext(mike, { actingAsUserId: aliyah.id, countEmulatedProgress: true }), aCard, "good", "type", T0);
+  await store.review(store.studyContext(mike, { actingAsUserId: userB.id, countEmulatedProgress: true }), cB, "good", "type", T0);
+
+  const trackA = model.makeTrack(mike.id, aliyah.id);
+  const trackB = model.makeTrack(mike.id, userB.id);
+  assert.ok(await store.getProgress(mike.id, cM.id), "own track");
+  assert.ok(await store.getProgress(trackA, aCard.id), "Aliyah-emulation track");
+  assert.ok(await store.getProgress(trackB, cB.id), "B-emulation track");
+
+  const rows = await store.adapter.getAll("progress");
+  const tracks = new Set(rows.map((r) => r.userId));
+  assert.deepEqual([...tracks].sort(), [mike.id, trackA, trackB].sort());
+  // The emulated users' own schedules stay empty.
+  assert.equal(await store.getProgress(aliyah.id, aCard.id), null);
+  assert.equal(await store.getProgress(userB.id, cB.id), null);
 });
 
 test("a non-admin cannot act as another user", async () => {

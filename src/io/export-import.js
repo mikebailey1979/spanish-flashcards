@@ -9,10 +9,12 @@
  */
 (function (root, factory) {
   "use strict";
-  const api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
-  root.SpanishFlashcardsIO = api;
-})(typeof self !== "undefined" ? self : this, function () {
+  if (typeof module === "object" && module.exports) {
+    module.exports = factory(require("../model/model.js"));
+  } else {
+    root.SpanishFlashcardsIO = factory(root.SpanishFlashcardsModel);
+  }
+})(typeof self !== "undefined" ? self : this, function (model) {
   "use strict";
 
   const EXPORT_SCHEMA = "aliyah-flashcards/v1";
@@ -66,7 +68,8 @@
     const user = await store.getUser(userId);
     if (!user) throw new Error("no such user: " + userId);
     const owned = (rows) => rows.filter((r) => r.ownerId === userId);
-    const studied = (rows) => rows.filter((r) => r.userId === userId);
+    // Include the user's own track AND any emulation tracks they own (admin@as:*).
+    const studied = (rows) => rows.filter((r) => model.trackBaseUser(r.userId) === userId);
     const [decks, lessons, cards, progress, reviewEvents] = await Promise.all([
       store.adapter.getAll("decks").then(owned),
       store.adapter.getAll("lessons").then(owned),
