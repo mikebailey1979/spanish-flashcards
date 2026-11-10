@@ -1,30 +1,37 @@
 // @ts-check
 /**
- * Seed (M1) — turns the reviewed vocabulary.js entries into a user's starting
- * content: a "Spanish Core" deck with one lesson per category, a card per entry.
- * Idempotent: it only seeds a user who has no seed lessons yet.
+ * Seed (M1) — turns Aliyah's reviewed homework into her starting content: a
+ * "Spanish Core" deck, one lesson per assignment, a card per pair, with the
+ * printed sub-headings stored as each card's `category` (bilingual section).
  *
- * NOTE: this seeds the clean 51 vacation entries as Aliyah's base content. Her
- * real homework (the OCR'd photo sets, deduped and grouped) is layered in later
- * via the import flow after HITL review; those lessons use source "ocr".
+ * Sources: the Vacation unit from vocabulary.js (51 cards, one lesson) + the
+ * vision-pass lessons from seed-data.js. Idempotent: only seeds a user who has
+ * no seed lessons yet. Future homework is layered in via import (source "ocr").
  */
 (function (root, factory) {
   "use strict";
   if (typeof module === "object" && module.exports) {
-    module.exports = factory(require("../model/model.js"), require("../../vocabulary.js"));
+    module.exports = factory(
+      require("../model/model.js"),
+      require("../../vocabulary.js"),
+      require("./seed-data.js")
+    );
   } else {
-    root.SpanishFlashcardsSeed = factory(root.SpanishFlashcardsModel, root.SpanishFlashcardsVocabulary);
+    root.SpanishFlashcardsSeed = factory(
+      root.SpanishFlashcardsModel,
+      root.SpanishFlashcardsVocabulary,
+      root.SpanishFlashcardsSeedData
+    );
   }
-})(typeof self !== "undefined" ? self : this, function (model, vocab) {
+})(typeof self !== "undefined" ? self : this, function (model, vocab, seedData) {
   "use strict";
 
   const DECK_NAME = "Spanish Core";
 
   /**
-   * Seed `ownerId`'s base lessons from vocabulary.js. Returns a summary.
    * @param {any} store
    * @param {string} ownerId
-   * @param {number} [now] epoch ms (injected for deterministic ids-independent timestamps)
+   * @param {number} [now]
    * @returns {Promise<{seeded: boolean, deck?: any, lessons?: any[], cards?: any[]}>}
    */
   async function seedUser(store, ownerId, now) {
@@ -34,34 +41,47 @@
     const deck = model.createDeck({ ownerId, name: DECK_NAME, frontLocale: "es", backLocale: "en" }, now);
     await store.putDeck(deck);
 
-    // Group entries by category, preserving first-seen order.
-    /** @type {Map<string, {es:string,en:string}[]>} */
-    const groups = new Map();
-    for (const entry of vocab.VOCABULARY) {
-      if (!groups.has(entry.cat)) groups.set(entry.cat, []);
-      groups.get(entry.cat).push({ es: entry.es, en: entry.en });
-    }
-
     const lessons = [];
     const cards = [];
-    for (const [cat, entries] of groups) {
+
+    /**
+     * @param {string} name
+     * @param {Array<{cat: string, pairs: [string,string][]}>} sections
+     */
+    async function addLesson(name, sections) {
       const cardIds = [];
-      for (const e of entries) {
-        const card = model.createCard(
-          { ownerId, deckId: deck.id, front: e.es, back: e.en, strict: {} },
-          now
-        );
-        await store.putCard(card);
-        cards.push(card);
-        cardIds.push(card.id);
+      for (const sec of sections) {
+        for (const [es, en] of sec.pairs) {
+          const card = model.createCard(
+            { ownerId, deckId: deck.id, front: es, back: en, category: sec.cat },
+            now
+          );
+          await store.putCard(card);
+          cards.push(card);
+          cardIds.push(card.id);
+        }
       }
       const lesson = model.createLesson(
-        { ownerId, deckId: deck.id, name: cat, source: "seed", cardIds },
+        { ownerId, deckId: deck.id, name, source: "seed", cardIds },
         now
       );
       await store.putLesson(lesson);
       lessons.push(lesson);
+      return lesson;
     }
+
+    // Vacation (Unit 1, Lesson 2) — the existing vocabulary.js 51, one lesson,
+    // its categories kept as sections.
+    const byCat = new Map();
+    for (const v of vocab.VOCABULARY) {
+      if (!byCat.has(v.cat)) byCat.set(v.cat, []);
+      byCat.get(v.cat).push([v.es, v.en]);
+    }
+    const vacSections = [...byCat.entries()].map(([cat, pairs]) => ({ cat, pairs }));
+    await addLesson("Vacation — Unit 1, Lesson 2", vacSections);
+
+    // The vision-pass lessons.
+    for (const L of seedData.SEED_LESSONS) await addLesson(L.name, L.sections);
 
     return { seeded: true, deck, lessons, cards };
   }

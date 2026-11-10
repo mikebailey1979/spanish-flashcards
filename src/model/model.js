@@ -79,8 +79,9 @@
    *   front: string,
    *   back: string,
    *   accepts: string[],
-   *   strict: StrictFlags
-   * }} Card
+   *   strict: StrictFlags,
+   *   category: string|null
+   * }} Card  category = the bilingual sub-heading/section within a lesson (or null)
    */
 
   /**
@@ -182,7 +183,7 @@
   }
 
   /**
-   * @param {{ownerId: string, deckId: string, front: string, back: string, accepts?: string[], strict?: StrictFlags}} input
+   * @param {{ownerId: string, deckId: string, front: string, back: string, accepts?: string[], strict?: StrictFlags, category?: string|null}} input
    * @param {number} [now]
    * @returns {Card}
    */
@@ -194,6 +195,7 @@
       back: input.back,
       accepts: input.accepts ? input.accepts.slice() : [],
       strict: input.strict ? Object.assign({}, input.strict) : {},
+      category: input.category == null ? null : String(input.category),
     });
   }
 
