@@ -1,0 +1,139 @@
+/* Aliyah's Flashcards — base shell. Depends on tokens.css (vars) + motion.css.
+   Global reset, the centered app column, the ground surface, tab bar, icon helper,
+   and type utilities. Layout is fluid; the content column stops at --col-max. */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--t-body);
+  line-height: 1.35;
+  color: var(--on-ground);
+  background: var(--ground);              /* ground fills past the column on wide screens */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; color: inherit; }
+::selection { background: rgba(255,255,255,.22); }
+
+/* The single centered column the whole app lives in. */
+.app {
+  position: relative;
+  max-width: var(--col-max);
+  min-height: 100dvh;
+  margin-inline: auto;
+  isolation: isolate;
+}
+
+/* A full-height ground surface. motion.css owns its background + the drifting ::before. */
+.screen {
+  position: relative;
+  overflow: hidden;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--top) var(--pad-x) calc(var(--bottom) + var(--s-7));
+}
+.screen > * { position: relative; z-index: 1; }   /* sit above the drift layer */
+/* Tab-bar screens leave room for the bar. */
+.screen--tabbed { padding-bottom: calc(var(--tabbar-h) + var(--s-4)); }
+
+/* Scrollable content region inside a screen. */
+.screen__body { flex: 1; display: flex; flex-direction: column; gap: var(--s-7); }
+
+/* ---- Icon helper: tints any package SVG to currentColor via mask. ----------
+   Paths below are relative to THIS file (app/design/), so they resolve the same
+   wherever the HTML lives. Add `.icon .icon--<name>`. */
+.icon {
+  display: inline-block;
+  width: 24px; height: 24px;
+  flex: none;
+  background: currentColor;
+  -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+.icon--sm { width: 20px; height: 20px; }
+.icon--lg { width: 28px; height: 28px; }
+.icon--home{-webkit-mask-image:url(icons/home.svg);mask-image:url(icons/home.svg)}
+.icon--lessons{-webkit-mask-image:url(icons/lessons.svg);mask-image:url(icons/lessons.svg)}
+.icon--add{-webkit-mask-image:url(icons/add.svg);mask-image:url(icons/add.svg)}
+.icon--progress{-webkit-mask-image:url(icons/progress.svg);mask-image:url(icons/progress.svg)}
+.icon--me{-webkit-mask-image:url(icons/me.svg);mask-image:url(icons/me.svg)}
+.icon--back{-webkit-mask-image:url(icons/back.svg);mask-image:url(icons/back.svg)}
+.icon--chevron{-webkit-mask-image:url(icons/chevron.svg);mask-image:url(icons/chevron.svg)}
+.icon--close{-webkit-mask-image:url(icons/close.svg);mask-image:url(icons/close.svg)}
+.icon--check{-webkit-mask-image:url(icons/check.svg);mask-image:url(icons/check.svg)}
+.icon--camera{-webkit-mask-image:url(icons/camera.svg);mask-image:url(icons/camera.svg)}
+.icon--search{-webkit-mask-image:url(icons/search.svg);mask-image:url(icons/search.svg)}
+.icon--speaker{-webkit-mask-image:url(icons/speaker.svg);mask-image:url(icons/speaker.svg)}
+.icon--mic{-webkit-mask-image:url(icons/mic.svg);mask-image:url(icons/mic.svg)}
+.icon--mic-off{-webkit-mask-image:url(icons/mic-off.svg);mask-image:url(icons/mic-off.svg)}
+.icon--flame{-webkit-mask-image:url(icons/flame.svg);mask-image:url(icons/flame.svg)}
+.icon--eye{-webkit-mask-image:url(icons/eye.svg);mask-image:url(icons/eye.svg)}
+.icon--share{-webkit-mask-image:url(icons/share.svg);mask-image:url(icons/share.svg)}
+.icon--more{-webkit-mask-image:url(icons/more.svg);mask-image:url(icons/more.svg)}
+.icon--edit{-webkit-mask-image:url(icons/edit.svg);mask-image:url(icons/edit.svg)}
+.icon--trash{-webkit-mask-image:url(icons/trash.svg);mask-image:url(icons/trash.svg)}
+.icon--merge{-webkit-mask-image:url(icons/merge.svg);mask-image:url(icons/merge.svg)}
+.icon--split{-webkit-mask-image:url(icons/split.svg);mask-image:url(icons/split.svg)}
+.icon--lock{-webkit-mask-image:url(icons/lock.svg);mask-image:url(icons/lock.svg)}
+.icon--offline{-webkit-mask-image:url(icons/offline.svg);mask-image:url(icons/offline.svg)}
+.icon--restore{-webkit-mask-image:url(icons/restore.svg);mask-image:url(icons/restore.svg)}
+.icon--star{-webkit-mask-image:url(icons/star.svg);mask-image:url(icons/star.svg)}
+.icon--face-easy{-webkit-mask-image:url(icons/face-easy.svg);mask-image:url(icons/face-easy.svg)}
+.icon--face-good{-webkit-mask-image:url(icons/face-good.svg);mask-image:url(icons/face-good.svg)}
+.icon--face-tricky{-webkit-mask-image:url(icons/face-tricky.svg);mask-image:url(icons/face-tricky.svg)}
+.icon--face-didnt{-webkit-mask-image:url(icons/face-didnt.svg);mask-image:url(icons/face-didnt.svg)}
+.icon--sync{-webkit-mask-image:url(icons/sync.svg);mask-image:url(icons/sync.svg)}
+.icon--download{-webkit-mask-image:url(icons/download.svg);mask-image:url(icons/download.svg)}
+.icon--person-add{-webkit-mask-image:url(icons/person-add.svg);mask-image:url(icons/person-add.svg)}
+.icon--idea-bulb{-webkit-mask-image:url(icons/idea-bulb.svg);mask-image:url(icons/idea-bulb.svg)}
+
+/* ---- Type utilities (names echo tokens.css) ------------------------------- */
+.t-caps  { font-size: var(--t-caps); font-weight: 700; letter-spacing: .14em;
+           text-transform: uppercase; }
+.t-label { font-size: var(--t-label); font-weight: 600; }
+.t-body-l{ font-size: var(--t-body-l); }
+.t-h1    { font-size: var(--t-h1); font-weight: 800; letter-spacing: -.02em; margin: 0; }
+.t-title { font-size: var(--t-title); font-weight: 800; letter-spacing: -.01em; margin: 0; }
+.t-word  { font-size: var(--t-word); font-weight: 800; letter-spacing: -.04em;
+           line-height: 1.02; margin: 0; overflow-wrap: break-word; }
+.t-hero  { font-size: var(--t-hero); font-weight: 800; letter-spacing: -.06em;
+           line-height: .95; }
+.muted   { opacity: .82; }
+
+/* ---- Tab bar (board 37): 5 items, center Add raised in a white circle ------ */
+.tabbar {
+  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: 100%; max-width: var(--col-max); z-index: 20;
+  height: var(--tabbar-h);
+  padding-bottom: var(--bottom);
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  align-items: start;
+  background: linear-gradient(180deg, transparent, var(--ground) 34%,
+              color-mix(in srgb, var(--ground) 70%, #04102a) 100%);
+}
+.tabbar__item {
+  appearance: none; border: 0; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding-top: 14px;
+  color: var(--on-ground); opacity: .62;
+  font-size: var(--t-caps); font-weight: 600; letter-spacing: .01em;
+}
+.tabbar__item[aria-current="page"] { opacity: 1; }
+.tabbar__item .icon { width: 26px; height: 26px; }
+/* Center Add: raised white 50 circle with a blue + */
+.tabbar__item--add { justify-content: flex-start; }
+.tabbar__item--add .fab {
+  width: 50px; height: 50px; border-radius: 50%;
+  margin-top: -16px;
+  background: #fff; color: var(--btn-text);
+  display: grid; place-items: center;
+  box-shadow: 0 6px 16px rgba(4,16,36,.28);
+}
+.tabbar__item--add .fab .icon { width: 24px; height: 24px; }
+
+@media (max-height: 700px) { .tabbar { height: 64px; } }

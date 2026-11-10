@@ -1,0 +1,47 @@
+/* Aliyah's Flashcards — motion. Every beat has a reduced-motion variant at the bottom. */
+/* Beat order on Check: color fade (250) + mark pop (600) + pulse + confetti (1500) -> hold -> Next -> fade back (250) */
+.screen{background:var(--ground);color:var(--on-ground);transition:background-color var(--m-fade) ease,color var(--m-fade) ease}
+.screen.is-correct{background:var(--correct)}
+.screen.is-notquite{background:var(--notquite);color:var(--ink-on-notquite)}
+.progress>i{display:block;height:100%;transition:width var(--m-bar) ease}
+/* the blue ground drifts; off on answer states */
+.screen::before{content:"";position:absolute;inset:-30%;pointer-events:none;
+  background:radial-gradient(38% 30% at 30% 26%,var(--drift-a),transparent 70%),radial-gradient(42% 34% at 74% 72%,var(--drift-b),transparent 70%);
+  animation:drift var(--m-drift) ease-in-out infinite alternate;will-change:transform}
+.screen.is-correct::before,.screen.is-notquite::before{display:none}
+@keyframes drift{0%{transform:translate(-4%,-3%) rotate(0) scale(1)}50%{transform:translate(5%,4%) rotate(8deg) scale(1.08)}100%{transform:translate(-2%,6%) rotate(-6deg) scale(1.02)}}
+/* mark wrapper centers glow, pulses and confetti on the mark, not the screen */
+.mark-wrap{position:relative;display:grid;place-items:center}
+.mark{width:104px;height:104px;border-radius:50%;background:#fff;display:grid;place-items:center;animation:pop var(--m-pop) cubic-bezier(.3,1.4,.5,1) both}
+@keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.25);opacity:1}100%{transform:scale(1)}}
+.is-notquite .mark{animation:wobble var(--m-wobble) ease both}
+@keyframes wobble{0%{transform:scale(.8);opacity:0}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}100%{transform:none;opacity:1}}
+/* pulse: soft ring from the mark to the screen edges */
+.pulse{position:absolute;left:50%;top:50%;width:104px;height:104px;margin:-52px 0 0 -52px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,var(--glow-ok),transparent);animation:pulse-ok var(--m-pulse-ok) ease-out infinite}
+.pulse.b{animation-delay:calc(var(--m-pulse-ok) / 2)}
+.is-notquite .pulse{background:radial-gradient(closest-side,var(--glow-no),transparent);animation:pulse-no var(--m-pulse-no) ease-out 1 both}
+@keyframes pulse-ok{0%{transform:scale(.5);opacity:.9}100%{transform:scale(9);opacity:0}}
+@keyframes pulse-no{0%{transform:scale(.5);opacity:.9}100%{transform:scale(9);opacity:0}}
+/* confetti: 10 pieces, once. JS sets --dx (-190..190px) and --rot per piece; colors from --confetti-1..4 */
+.confetti{position:absolute;left:50%;top:50%;width:10px;height:14px;border-radius:2px;pointer-events:none;
+  animation:confetti var(--m-confetti) var(--ease-confetti) both}
+@keyframes confetti{0%{transform:translate(0,0) rotate(0);opacity:1}80%{opacity:1}100%{transform:translate(var(--dx),300px) rotate(var(--rot));opacity:0}}
+/* sheets and keyboard */
+.sheet{transform:translateY(100%);transition:transform var(--m-sheet) cubic-bezier(.2,.8,.2,1)}.sheet.is-open{transform:none}
+.scrim{opacity:0;transition:opacity var(--m-sheet) ease}.scrim.is-open{opacity:1}
+/* loading */
+.skeleton{background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,.26),rgba(255,255,255,.12));background-size:200% 100%;animation:shimmer 1.6s linear infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+.spinner{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.listening{animation:listen 1.4s ease-in-out infinite}@keyframes listen{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.5)}50%{box-shadow:0 0 0 18px rgba(255,255,255,0)}}
+@media (prefers-reduced-motion:reduce){
+  /* keep the color fades; drop everything else */
+  *,*::before,*::after{animation:none!important}
+  .progress>i{transition:none}
+  .sheet,.scrim{transition:none}
+  .screen::before{display:block;opacity:.6}                      /* still, slightly lighter patch */
+  .screen.is-correct .mark-wrap::before{content:"";position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(closest-side,var(--glow-ok),transparent)}
+  .screen.is-notquite .mark-wrap::before{content:"";position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(closest-side,var(--glow-no),transparent)}
+  .confetti,.pulse{display:none}
+}
