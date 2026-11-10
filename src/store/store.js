@@ -53,8 +53,11 @@
     // ---- users -----------------------------------------------------------
     /** @param {User} u */
     const putUser = (u) => put("users", u);
-    /** @param {string} id @returns {Promise<User|null>} */
-    const getUser = async (id) => (await get("users", id)) || null;
+    /** @param {string} id @returns {Promise<User|null>} (tombstoned users read as null) */
+    const getUser = async (id) => {
+      const u = await get("users", id);
+      return u && u.deletedAt == null ? u : null;
+    };
     /** @returns {Promise<User[]>} */
     const listUsers = async () => (await all("users")).filter(live);
 
