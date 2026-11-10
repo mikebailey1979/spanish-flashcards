@@ -1,0 +1,62 @@
+/* Aliyah's Flashcards — screen compositions (Phase 1). Depends on base + components. */
+
+/* ---- Study header (progress bar + exit / lesson / counter) ---------------- */
+.study-head { display: flex; flex-direction: column; gap: var(--s-6); }
+.study-head__row { display: flex; align-items: center; gap: var(--s-5); }
+.study-head__exit { width: 36px; height: 36px; flex: none; border: 0; cursor: pointer;
+  border-radius: 50%; background: var(--surface-1); color: inherit;
+  display: grid; place-items: center; }
+.study-head__exit .icon { width: 18px; height: 18px; }
+.study-head__lesson { flex: 1; font-size: 15px; font-weight: 700; opacity: .92;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.study-head__count { font-size: 14px; font-weight: 700; opacity: .7; }
+
+/* ---- Study question ------------------------------------------------------- */
+.study { justify-content: space-between; }
+.study__stage { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--s-5); padding: var(--s-9) 0; }
+.study__dir { opacity: .85; }
+.study__prompt { max-width: 100%; }
+.study__sub { opacity: .85; font-size: var(--t-body-l); }
+.study__controls { display: flex; flex-direction: column; gap: var(--s-4); }
+.study__answerrow { display: flex; gap: var(--s-4); }
+.study__answerrow .btn { width: auto; flex: 1; }
+.study__answerrow .btn--idk { flex: 0 0 auto; padding: 0 var(--s-7); }
+/* Choose-mode options */
+.options { display: flex; flex-direction: column; gap: var(--s-4); width: 100%; }
+.option { width: 100%; text-align: center; border: 0; cursor: pointer;
+  background: var(--surface-1); color: inherit; border-radius: var(--r-row);
+  min-height: var(--opt-h); font-size: var(--t-body-l); font-weight: 700; padding: 0 var(--s-6); }
+.idk-link { background: none; border: 0; color: inherit; cursor: pointer;
+  text-decoration: underline; font-weight: 700; font-size: var(--t-label);
+  align-self: center; padding: var(--s-4); }
+
+/* ---- Study result (answer state) ------------------------------------------ */
+.result { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--s-6); }
+.result .mark-wrap { margin-bottom: var(--s-2); }
+
+/* ---- Session done --------------------------------------------------------- */
+.done { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--s-6); }
+.done__num { line-height: .9; }
+.done__trickies { display: flex; flex-wrap: wrap; gap: var(--s-3); justify-content: center; }
+
+/* ---- Home ----------------------------------------------------------------- */
+.home__head { display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--s-8); }
+.streak-pill { display: inline-flex; align-items: center; gap: 6px; height: 34px;
+  padding: 0 var(--s-5); border-radius: var(--r-pill); background: var(--surface-2);
+  font-size: 13px; font-weight: 700; }
+.streak-pill .icon { width: 16px; height: 16px; }
+.section-label { display: flex; align-items: center; justify-content: space-between;
+  margin: var(--s-6) 0 var(--s-4); }
+.list { display: flex; flex-direction: column; gap: var(--s-4); }
+
+/* ---- Lessons -------------------------------------------------------------- */
+.row--accent { background: #fff; color: var(--btn-text); }
+.row--accent .row__meta { opacity: .7; }
+
+/* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
+.placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--s-5); opacity: .9; }
