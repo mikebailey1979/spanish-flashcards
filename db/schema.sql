@@ -81,6 +81,9 @@ begin
 end $$;
 
 -- ---- RLS policies: owner (or admin) may read; owner may write -------------
+-- Every policy also requires is_allowed(), so the DATABASE enforces invite-only
+-- (defense in depth): even a valid Google session for a non-allowlisted account
+-- can neither read nor create any row. Admins satisfy is_allowed() too.
 -- Run once; DROP POLICY first if you re-tune them.
 do $$
 declare t text;
@@ -88,13 +91,13 @@ begin
   foreach t in array array['users','decks','lessons','cards','progress','review_events'] loop
     execute format($f$
       drop policy if exists %I on %I;
-      create policy %I on %I for select using (owner = auth.uid() or is_admin());
+      create policy %I on %I for select using ((owner = auth.uid() or is_admin()) and is_allowed());
       drop policy if exists %I on %I;
-      create policy %I on %I for insert with check (owner = auth.uid());
+      create policy %I on %I for insert with check (owner = auth.uid() and is_allowed());
       drop policy if exists %I on %I;
-      create policy %I on %I for update using (owner = auth.uid()) with check (owner = auth.uid());
+      create policy %I on %I for update using (owner = auth.uid() and is_allowed()) with check (owner = auth.uid() and is_allowed());
       drop policy if exists %I on %I;
-      create policy %I on %I for delete using (owner = auth.uid());
+      create policy %I on %I for delete using (owner = auth.uid() and is_allowed());
     $f$,
       t||'_sel', t, t||'_sel', t,
       t||'_ins', t, t||'_ins', t,
