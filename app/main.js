@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // card.id -> lesson, for grouping due counts
   const cardLesson = {};
   for (const l of lessons) for (const id of l.cardIds) cardLesson[id] = l;
+  const allCards = await store.listCards(ctx.contentOwnerId);   // for MC distractors
 
   // ---- helpers -------------------------------------------------------------
   const CHEERS = ["¡Muy bien!", "¡Eso es!", "¡Perfecto!", "¡Genial!"];
@@ -45,6 +46,46 @@ document.addEventListener("DOMContentLoaded", async () => {
   function gradeFor(res, idk) {
     if (idk || !res.correct) return "again";
     return res.why === "typo" ? "hard" : "good";
+  }
+
+  // ---- direction, mode + bidirectional grading (Phase 3) -------------------
+  const DIRS = ["es-en", "en-es"];
+  const speakSupported = !!(self.SpeechRecognition || self.webkitSpeechRecognition);
+  function pref(key, allowed, dflt) { try { const v = localStorage.getItem(key); return allowed.includes(v) ? v : dflt; } catch { return dflt; } }
+  function pickDir() { const s = pref("aliyah.direction", DIRS, "mixed"); return s === "mixed" ? DIRS[Math.random() < .5 ? 0 : 1] : s; }
+  function pickMode() {
+    const s = pref("aliyah.mode", ["type", "choice", "speak"], "mixed");
+    if (s !== "mixed") return s === "speak" && !speakSupported ? "type" : s;
+    return ["type", "choice"][Math.floor(Math.random() * 2)];   // speak joins the mix in Phase 3b
+  }
+  const promptOf = (c, dir) => dir === "es-en" ? c.front : c.back;   // what she sees
+  const answerOf = (c, dir) => dir === "es-en" ? c.back : c.front;   // what's correct
+  // The card the matcher grades against for this direction (es→en uses the card
+  // as-is; en→es flips so the Spanish front is the accepted answer).
+  const targetCard = (c, dir) => dir === "es-en" ? c : { back: c.front, accepts: [], strict: c.strict || {} };
+  function gradeAnswer(input, c, dir) {
+    const target = targetCard(c, dir);
+    const res = matcher.isCorrect(input, target);
+    if (res.correct) return { correct: true, why: res.why };
+    const st = target.strict || {};
+    if (st.article || st.plural || st.typo) {   // would it pass if we forgave the strict rule? → near miss
+      const lenient = matcher.isCorrect(input, Object.assign({}, target, { strict: {} }));
+      if (lenient.correct) return { correct: false, near: true, fix: nearFix(lenient.why, c, dir) };
+    }
+    return { correct: false };
+  }
+  const ARTICLE_RE = /^(el|la|los|las|un|una|unos|unas|the|a|an)\s+/i;
+  function nearFix(why, c, dir) {
+    if (why === "article") { const m = answerOf(c, dir).match(ARTICLE_RE); return m ? `This one needs "${m[1].toLowerCase()}"` : "Check the article"; }
+    if (why === "plural") return "Check the ending — one or many?";
+    if (why === "typo") return "So close — check the spelling.";
+    return "Look closely at the exact form.";
+  }
+  function distractors(c, dir) {   // MC: same-category answer-side, else any
+    let same = allCards.filter((x) => x.id !== c.id && x.category === c.category).map((x) => answerOf(x, dir));
+    if (same.length < 3) same = allCards.filter((x) => x.id !== c.id).map((x) => answerOf(x, dir));
+    same = [...new Set(same.filter(Boolean))].sort(() => Math.random() - .5).slice(0, 3);
+    return [...same, answerOf(c, dir)].sort(() => Math.random() - .5);
   }
   async function dueList(ls) { return store.selectDue(ctx, ls, now()); }
 
@@ -356,23 +397,28 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderQuestion() {
     const c = S.current = S.queue[S.idx];
-    S.answered = false; S.idk = false; S.res = null; S.rating = null;
-    mount(`<section class="screen study">
-      ${studyHead()}
-      <div class="study__stage">
-        <div class="t-caps study__dir">Spanish → English</div>
-        <h2 class="t-word study__prompt">${esc(c.front)}</h2>
-        <div class="study__sub">Type the English</div>
-      </div>
-      <form id="answer-form" class="study__controls">
-        <input class="field" id="answer-input" autocomplete="off" autocapitalize="off"
-          autocorrect="off" spellcheck="false" placeholder="type the English translation">
+    S.answered = false; S.idk = false; S.res = null; S.rating = null; S.typed = null;
+    S.dir = pickDir(); S.mode = pickMode();
+    const dirLabel = S.dir === "es-en" ? "Spanish → English" : "English → Spanish";
+    const stage = `<div class="t-caps study__dir">${dirLabel}</div>
+      <h2 class="t-word study__prompt">${esc(promptOf(c, S.dir))}</h2>
+      <div class="study__sub">${S.mode === "choice" ? "Pick the match" : (S.dir === "es-en" ? "Type the English" : "Type the Spanish")}</div>`;
+    let controls;
+    if (S.mode === "choice") {
+      controls = `<div class="study__controls"><div class="options">${distractors(c, S.dir)
+        .map((o) => `<button class="option" data-act="pick-option" data-val="${esc(o)}">${esc(o)}</button>`).join("")}</div>
+        <button class="idk-link" data-act="idk">I don't know</button></div>`;
+    } else {
+      const ph = S.dir === "es-en" ? "type the English translation" : "type the Spanish translation";
+      controls = `<form id="answer-form" class="study__controls">
+        <input class="field" id="answer-input" autocomplete="off" autocapitalize="off" autocorrect="off"
+          spellcheck="false" ${S.dir === "en-es" ? 'lang="es"' : ""} placeholder="${ph}">
         <div class="study__answerrow">
           <button type="button" class="btn btn--secondary btn--idk" data-act="idk">I don't know</button>
           <button type="submit" class="btn btn--primary" id="check-btn" disabled>Check</button>
-        </div>
-      </form>
-    </section>`);
+        </div></form>`;
+    }
+    mount(`<section class="screen study">${studyHead()}<div class="study__stage">${stage}</div>${controls}</section>`);
     const input = document.getElementById("answer-input");
     const checkBtn = document.getElementById("check-btn");
     if (input) {
@@ -383,23 +429,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     saveResume();   // persist in-progress session so she can resume within 24h
   }
 
+  function finishAnswer(res) {
+    S.answered = true; S.idk = false; S.res = res;
+    S.grade = res.correct ? (res.why === "typo" ? "hard" : "good") : "again";
+    S.autoGrade = S.grade;
+    renderResult();
+  }
   function check() {
     if (S.answered) return;
     const input = document.getElementById("answer-input");
     if (!input || !input.value.trim()) return;   // empty is never a miss (board 24)
-    const res = matcher.isCorrect(input.value, S.current);
-    S.answered = true; S.idk = false; S.res = res; S.grade = gradeFor(res, false); S.autoGrade = S.grade;
-    renderResult();
+    S.typed = input.value;
+    finishAnswer(gradeAnswer(input.value, S.current, S.dir));
+  }
+  function chooseAnswer(val) {
+    if (S.answered) return;
+    S.typed = val;
+    finishAnswer(gradeAnswer(val, S.current, S.dir));
   }
   function idk() {
     if (S.answered) return;
-    S.answered = true; S.idk = true; S.res = { correct: false, why: null }; S.grade = "again"; S.autoGrade = "again";
+    S.answered = true; S.idk = true; S.typed = null; S.res = { correct: false }; S.grade = "again"; S.autoGrade = "again";
     renderResult();
   }
 
   function renderResult() {
-    const c = S.current, correct = S.res.correct && !S.idk;
-    const stateClass = S.idk ? "" : correct ? "is-correct" : "is-notquite";
+    const c = S.current, correct = S.res.correct && !S.idk, near = !S.idk && S.res.near;
+    const stateClass = (correct || S.idk) ? (correct ? "is-correct" : "") : "is-notquite";
     let markIcon, cheer, sub, chip, link, nextLabel;
     if (correct) {
       markIcon = `<i class="mark__icon icon--check"></i>`;
@@ -410,10 +466,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       markIcon = `<i class="mark__icon mark__icon--idk"></i>`;
       cheer = "No problem."; sub = `<div class="muted">Here is the answer</div>`;
       chip = `<span class="chip">We'll practice it again</span>`; link = ""; nextLabel = "Got it";
+    } else if (near) {   // strict near-miss — the form is the teaching point (board 27)
+      markIcon = `<i class="mark__icon icon--close"></i>`;
+      cheer = "Almost there."; sub = "";
+      chip = `<span class="chip">${esc(S.res.fix)}</span>${S.typed ? `<span class="chip">You wrote: ${esc(S.typed)}</span>` : ""}`;
+      link = ""; nextLabel = "Next";
     } else {
       markIcon = `<i class="mark__icon icon--close"></i>`;
       cheer = "¡Ánimo! You've got this."; sub = "";
-      chip = `<span class="chip">We'll practice it again</span>`;
+      chip = `<span class="chip">We'll practice it again</span>${(S.mode === "choice" && S.typed) ? `<span class="chip">You picked: ${esc(S.typed)}</span>` : ""}`;
       link = `<div class="linkrow"><a data-act="noop">That should've counted</a> · <a data-act="noop">Explain</a></div>`;
       nextLabel = "Next";
     }
@@ -427,8 +488,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="mark-wrap"><div class="mark">${markIcon}</div>${correct ? '<span class="pulse"></span><span class="pulse b"></span>' : ""}</div>
         <div class="answer-block">
           <div class="t-title cheer">${esc(cheer)}</div>${sub}
-          <div class="t-caps prompt-label">${esc(c.front)}</div>
-          <div class="answer">${esc(c.back)}</div>
+          <div class="t-caps prompt-label">${esc(promptOf(c, S.dir))}</div>
+          <div class="answer">${esc(answerOf(c, S.dir))}</div>
           ${chip}
         </div>
         ${link}
@@ -441,7 +502,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function gradeNext() {
     // S.grade is the auto grade, possibly amended by her rating (see rate()).
-    await store.review(ctx, S.current, S.grade, "type", now(), null, { autoGrade: S.autoGrade, rating: S.rating });
+    await store.review(ctx, S.current, S.grade, S.mode || "type", now(), null, { autoGrade: S.autoGrade, rating: S.rating });
     if (S.res && S.res.correct && !S.idk) S.right++;
     S.idx++;
     if (S.idx >= S.queue.length) { clearResume(); return renderDone(); }
@@ -549,6 +610,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
     else if (act === "idk") idk();
+    else if (act === "pick-option") chooseAnswer(t.dataset.val);
     else if (act === "grade-next") gradeNext();
     else if (act === "open-rating") openRating();
     else if (act === "rate") rate(t.dataset.val);
