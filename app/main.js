@@ -32,7 +32,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   // card.id -> lesson, for grouping due counts
   const cardLesson = {};
   for (const l of lessons) for (const id of l.cardIds) cardLesson[id] = l;
-  const allCards = await store.listCards(ctx.contentOwnerId);   // for MC distractors
+  let allCards = await store.listCards(ctx.contentOwnerId);   // for MC distractors
+
+  // Rebuild the content caches after any lesson/card edit (Phase 4).
+  async function refreshContent() {
+    lessons = await store.listLessons(DEMO_ID);
+    for (const k in cardLesson) delete cardLesson[k];
+    for (const l of lessons) for (const id of l.cardIds) cardLesson[id] = l;
+    allCards = await store.listCards(ctx.contentOwnerId);
+  }
 
   // ---- helpers -------------------------------------------------------------
   const CHEERS = ["¡Muy bien!", "¡Eso es!", "¡Perfecto!", "¡Genial!"];
@@ -264,6 +272,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const byLesson = {};
     for (const c of due) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
     const list = lessons.map((l) => lessonRow(l, byLesson[l.id] || 0)).join("");
+    const deletedCount = (await store.listDeletedLessons(DEMO_ID)).length;   // PHASE 5: moves to Me → Recently deleted
     mount(`<section class="screen screen--tabbed">
       <h1 class="t-h1" style="margin-bottom:var(--s-7)">Lessons</h1>
       <div class="list">
@@ -274,6 +283,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         </button>
         ${list}
       </div>
+      ${deletedCount ? `<button class="row" data-act="recently-deleted" style="margin-top:var(--s-5)">
+        <span class="row__main"><span class="row__title">Recently deleted</span>
+          <span class="row__meta">${deletedCount} lesson${deletedCount === 1 ? "" : "s"} · restore within 7 days</span></span>
+        ${icon("chevron", "icon--sm")}</button>` : ""}
     </section>${tabbar("lessons")}`);
   }
 
@@ -295,6 +308,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="study-head__row" style="margin-bottom:var(--s-7)">
         <button class="study-head__exit" data-act="lessons">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">${esc(l.name)}</span>
+        <button class="study-head__exit" data-act="lesson-menu" data-id="${l.id}" aria-label="Lesson options" style="margin-left:auto">${icon("more")}</button>
       </div>
       <div class="hero">
         <div class="t-hero" style="font-size:clamp(44px,15vw,64px)">${pct}%</div>
@@ -603,6 +617,85 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="btn btn--secondary" data-act="home">Stop for now</button></div>`);
   }
   function closeExit() { app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove()); }
+
+  // ---- lesson management (Phase 4b) ---------------------------------------
+  function closeSheet() { app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove()); }
+  function sheet(html) {
+    closeSheet();
+    app.insertAdjacentHTML("beforeend",
+      `<div class="scrim" data-act="close-sheet"></div><div class="sheet"><div class="sheet__handle"></div>${html}</div>`);
+  }
+  function openLessonMenu(id) {
+    const l = lessons.find((x) => x.id === id); if (!l) return;
+    // Merge/Split added in Phase 4c; Rename/Delete live now.
+    sheet(`<div class="sheet__title" style="margin-bottom:var(--s-4)">${esc(l.name)}</div>
+      <div class="menu">
+        <button class="menu__item" data-act="lesson-rename" data-id="${id}">${icon("edit")}<span>Rename</span></button>
+        <button class="menu__item menu__item--danger" data-act="lesson-delete" data-id="${id}">${icon("trash")}<span>Delete lesson</span></button>
+      </div>`);
+  }
+  function openRename(id) {
+    const l = lessons.find((x) => x.id === id); if (!l) return;
+    const max = 80;
+    sheet(`<div class="sheet__title">Rename lesson</div>
+      <input id="rename-field" class="field" maxlength="${max}" value="${esc(l.name)}" aria-label="Lesson name">
+      <div class="t-label" style="text-align:right;color:var(--sheet-muted)"><span id="rename-count">${l.name.length}</span>/${max}</div>
+      <button class="btn btn--primary" data-act="lesson-rename-save" data-id="${id}">Save</button>
+      <button class="btn btn--secondary" data-act="close-sheet">Cancel</button>`);
+    const f = document.getElementById("rename-field");
+    if (f) {
+      f.focus(); f.setSelectionRange(f.value.length, f.value.length);
+      f.addEventListener("input", () => { const c = document.getElementById("rename-count"); if (c) c.textContent = f.value.length; });
+    }
+  }
+  async function doRename(id) {
+    const f = document.getElementById("rename-field"); const name = (f ? f.value : "").trim();
+    if (!name) { if (f) f.focus(); return; }
+    await store.renameLesson(id, name, now()); await refreshContent(); closeSheet(); renderLessonDetail(id);
+  }
+  function openDeleteLesson(id) {
+    const l = lessons.find((x) => x.id === id); if (!l) return;
+    sheet(`<div class="sheet__title">Delete ${esc(l.name)}?</div>
+      <div class="sheet__text">The ${l.cardIds.length} words and your progress on them will be removed from all your devices. You can undo this for 7 days.</div>
+      <button class="btn btn--destructive" data-act="lesson-delete-confirm" data-id="${id}">Delete lesson</button>
+      <button class="btn btn--secondary" data-act="close-sheet">Keep it</button>`);
+  }
+  async function doDeleteLesson(id) {
+    const l = lessons.find((x) => x.id === id); const name = l ? l.name : "Lesson";
+    await store.deleteLesson(id, now()); await refreshContent(); closeSheet(); await renderLessons();
+    showUndoToast(id, name);
+  }
+  function showUndoToast(id, name) {
+    app.querySelectorAll(".toast").forEach((n) => n.remove());
+    app.insertAdjacentHTML("beforeend",
+      `<div class="toast"><span>${esc(name)} deleted</span><button class="link" data-act="lesson-undo" data-id="${id}">Undo</button></div>`);
+    const t = app.querySelector(".toast");
+    setTimeout(() => { if (t && t.isConnected) t.remove(); }, 6000);
+  }
+  async function undoDelete(id) {
+    await store.restoreLesson(id, now()); await refreshContent();
+    app.querySelectorAll(".toast").forEach((n) => n.remove()); renderLessonDetail(id);
+  }
+  async function renderRecentlyDeleted() {
+    const deleted = await store.listDeletedLessons(DEMO_ID);
+    const rows = deleted.map((l) => {
+      const daysLeft = Math.max(0, 7 - Math.floor((now() - Date.parse(l.deletedAt)) / 86400000));
+      return `<div class="row" style="cursor:default"><span class="row__main">
+        <span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span>
+        <span class="row__meta">${l.cardIds.length} words · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left</span></span>
+        <button class="chip" style="background:#fff;color:var(--btn-text)" data-act="lesson-restore" data-id="${l.id}">Restore</button></div>`;
+    }).join("");
+    mount(`<section class="screen screen--tabbed">
+      <div class="study-head__row" style="margin-bottom:var(--s-7)">
+        <button class="study-head__exit" data-act="lessons">${icon("back")}</button>
+        <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Recently deleted</span>
+      </div>
+      <div class="muted" style="margin-bottom:var(--s-5)">Lessons stay here for 7 days, then they are gone for good. Restoring brings back every word and your progress on it, on all your devices.</div>
+      ${deleted.length ? `<div class="list">${rows}</div>`
+        : `<div class="placeholder">${icon("restore")}<div class="t-title">Nothing here</div><div class="muted">Deleted lessons show up here for 7 days.</div></div>`}
+    </section>${tabbar("lessons")}`);
+  }
+  async function restoreFromList(id) { await store.restoreLesson(id, now()); await refreshContent(); renderRecentlyDeleted(); }
   async function startTricky() { startWith(trickyCards(await loadData())); }
   function renderPlaceholder(tab, title) {
     mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
@@ -744,6 +837,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "close-rating") closeRating();
     else if (act === "exit-study") openExit();
     else if (act === "close-exit") closeExit();
+    // lesson management (Phase 4b)
+    else if (act === "lesson-menu") openLessonMenu(id);
+    else if (act === "lesson-rename") openRename(id);
+    else if (act === "lesson-rename-save") doRename(id);
+    else if (act === "lesson-delete") openDeleteLesson(id);
+    else if (act === "lesson-delete-confirm") doDeleteLesson(id);
+    else if (act === "lesson-undo") undoDelete(id);
+    else if (act === "recently-deleted") renderRecentlyDeleted();
+    else if (act === "lesson-restore") restoreFromList(id);
+    else if (act === "close-sheet") closeSheet();
     // Logged-out screens (PHASE 5: real OAuth + allowlist replaces these)
     else if (act === "auth-continue") authGoTo("notlist");   // demo: every account → not-on-list
     else if (act === "auth-retry") authGoTo("signin");
