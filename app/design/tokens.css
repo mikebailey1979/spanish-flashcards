@@ -37,6 +37,13 @@
   --tap:44px; --btn-h:56px; --opt-h:62px; --field-h:64px; --tabbar-h:88px;
   --col-max:480px;  /* content column stops growing here; centered above */
 
+  /* photo sign-in / not-on-list screens (logged-out only; everything else keeps --ground) */
+  --photo-ground:#04102A;            /* navy behind the photo (spec) + the lock glyph */
+  --photo-surround:#010E29;          /* wide-screen side fill; averaged from the sign-in photo's deep-navy edge columns */
+  --photo-scrim:linear-gradient(180deg,rgba(3,10,26,0) 0%,rgba(3,10,26,0) 50%,rgba(3,10,26,.40) 62%,rgba(3,10,26,.66) 74%,rgba(3,10,26,.82) 100%);
+  --t-photo:400ms ease;              /* sharp-photo crossfade + ground dissolve */
+  --t-fade:250ms ease;              /* content-layer crossfade */
+
   /* motion (see motion.css) */
   --m-fade:250ms; --m-bar:500ms; --m-pop:600ms; --m-wobble:600ms; --m-confetti:1500ms;
   --m-pulse-ok:2600ms; --m-pulse-no:1700ms; --m-drift:44s; --m-sheet:300ms;

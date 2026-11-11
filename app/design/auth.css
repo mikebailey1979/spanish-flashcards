@@ -1,0 +1,92 @@
+/* Aliyah's Flashcards — logged-out screens ONLY (Sign in + Not on the list).
+   Photo treatment per design-package/aliyah-signin-photo-handoff/README-SIGNIN-PHOTO.md.
+   Everything after sign-in keeps the blue --ground; nothing here touches those screens. */
+
+/* The auth stage fills the centered app column. The navy ground is fixed and
+   full-viewport so it fills the sides past the 480 column on wide screens;
+   the photo + scrim + content stay inside the column (README "Responsive" >=600). */
+.auth { position: absolute; inset: 0; overflow: hidden; }
+.auth__ground {                                   /* layer 1 — fills the sides past the column on wide screens */
+  position: fixed; inset: 0; z-index: 0;
+  background: var(--photo-surround);
+}
+.auth__photo {                                    /* layers 2 (blur) + 3 (sharp) */
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: 70% 20%;
+  z-index: 1;
+}
+.auth__photo--sharp { z-index: 2; opacity: 1; transition: opacity var(--t-photo); }
+.auth__scrim {                                    /* layer 4 — never animated */
+  position: absolute; inset: 0; z-index: 3;
+  background: var(--photo-scrim); pointer-events: none;
+}
+
+/* layer 5 — one content block per screen, stacked, crossfaded */
+.auth__content {
+  position: absolute; inset: 0; z-index: 4;
+  display: flex; flex-direction: column;
+  padding: max(54px, calc(env(safe-area-inset-top) + 20px))
+           22px
+           max(34px, calc(env(safe-area-inset-bottom) + 18px));
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--t-fade);
+}
+.auth[data-state="signin"]  .auth__content--signin  { opacity: 1; pointer-events: auto; }
+.auth[data-state="notlist"] .auth__content--notlist { opacity: 1; pointer-events: auto; }
+.auth[data-state="notlist"] .auth__photo--sharp     { opacity: 0; }
+
+/* ---- Sign in ------------------------------------------------------------- */
+.auth__logo { width: 72px; height: 72px; margin-left: -6px; display: block; }  /* no tile */
+.auth__sp-2 { flex: 2; }                          /* space above title = 2x below */
+.auth__sp-1 { flex: 1; }
+.auth__mid { display: flex; flex-direction: column; gap: 8px; }
+.auth__title, .auth__tagline {
+  color: var(--on-ground); margin: 0;
+  /* thin dark outline — README 4b (title lands on bright hair + book glow) */
+  text-shadow:
+    1.5px 0 0 #030A1A, -1.5px 0 0 #030A1A, 0 1.5px 0 #030A1A, 0 -1.5px 0 #030A1A,
+    1.1px 1.1px 0 #030A1A, -1.1px 1.1px 0 #030A1A, 1.1px -1.1px 0 #030A1A, -1.1px -1.1px 0 #030A1A,
+    0 0 4px rgba(3,10,26,.8);
+}
+.auth__title   { font-size: 38px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+.auth__tagline { font-size: 16px; font-weight: 600;
+  text-shadow:
+    1px 0 0 #030A1A, -1px 0 0 #030A1A, 0 1px 0 #030A1A, 0 -1px 0 #030A1A,
+    .73px .73px 0 #030A1A, -.73px .73px 0 #030A1A, .73px -.73px 0 #030A1A, -.73px -.73px 0 #030A1A,
+    0 0 3px rgba(3,10,26,.8);
+}
+.auth__bottom { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.auth__fine { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--on-ground); opacity: .92; }
+
+/* 58pt pills; Google pill is white with dark ink + the G mark */
+.auth .btn { height: 58px; }
+.auth__google { display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: #fff; color: #12263F; font-weight: 700; }
+.auth__g { width: 20px; height: 20px; flex: none; display: block; }
+
+/* ---- Not on the list (stacked at the bottom) ----------------------------- */
+.auth__content--notlist { justify-content: flex-end; align-items: center; text-align: center; gap: 16px; }
+.auth__lock { width: 72px; height: 72px; border-radius: 50%;
+  background: #fff; display: grid; place-items: center; }
+.auth__lock .icon { width: 36px; height: 36px; color: var(--photo-ground); }
+.auth__nl-title { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -.02em; color: var(--on-ground); }
+.auth__nl-body { margin: 0; font-size: 16px; font-weight: 600; color: var(--on-ground); opacity: .95; max-width: 20rem; }
+.auth__email { margin-top: 2px; padding: 12px 18px; border-radius: var(--r-pill);
+  background: rgba(255,255,255,.14); color: var(--on-ground); font-weight: 700; font-size: 15px; }
+.auth__content--notlist .btn { margin-top: 0; }
+.auth__content--notlist .auth__actions { width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.auth__content--notlist .btn--primary { background: #fff; color: #12263F; font-weight: 700; }
+
+/* ---- Responsive: iPhone SE / short screens (README) ---------------------- */
+@media (max-height: 700px) {
+  .auth__content { padding: 44px 20px 24px; }
+  .auth__logo { width: 60px; height: 60px; }
+  .auth__title { font-size: 30px; }
+  .auth__tagline { font-size: 15px; }
+  .auth .btn { height: 52px; }
+  .auth__lock { width: 56px; height: 56px; }
+  .auth__lock .icon { width: 28px; height: 28px; }
+  .auth__nl-title { font-size: 28px; }
+}
+
+/* reduced motion: keep both fades (no movement is involved) */

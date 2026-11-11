@@ -640,6 +640,58 @@ document.addEventListener("DOMContentLoaded", async () => {
     </section>`);
   }
 
+  // ---- logged-out screens: Sign in + Not on the list -----------------------
+  //  Photo treatment per the sign-in handoff. These are the ONLY screens that use
+  //  the photo/navy ground; everything after sign-in keeps the blue --ground.
+  //  PHASE 5: there is no real Google OAuth yet. The real app still boots straight
+  //  to Home (demo user); these screens are reachable only via a dev route
+  //  (#dev=signin / #dev=notonlist), and "Continue" just crossfades to the
+  //  not-on-list state so the designed transition is demoable. Replace the dev
+  //  route + the button handlers below with real auth + allowlist in Phase 5.
+  const GOOGLE_G = `<svg class="auth__g" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`;
+
+  function authMarkup(email) {
+    return `<section class="auth" data-state="signin">
+      <div class="auth__ground"></div>
+      <img class="auth__photo auth__photo--blur" src="assets/signin-bg-blur.jpg" alt="" aria-hidden="true">
+      <img class="auth__photo auth__photo--sharp" src="assets/signin-bg.jpg" alt="" aria-hidden="true">
+      <div class="auth__scrim"></div>
+
+      <div class="auth__content auth__content--signin">
+        <img class="auth__logo" src="assets/logo-mark.png" alt="" aria-hidden="true">
+        <div class="auth__sp-2"></div>
+        <div class="auth__mid">
+          <h1 class="auth__title">Aliyah's Flashcards</h1>
+          <p class="auth__tagline">Turn your Spanish homework into flashcards.</p>
+        </div>
+        <div class="auth__sp-1"></div>
+        <div class="auth__bottom">
+          <button class="btn btn--primary auth__google" data-act="auth-continue">${GOOGLE_G}Continue with Google</button>
+          <p class="auth__fine">This app is invite-only.</p>
+        </div>
+      </div>
+
+      <div class="auth__content auth__content--notlist">
+        <div class="auth__lock">${icon("lock")}</div>
+        <h1 class="auth__nl-title">This app is invite-only</h1>
+        <p class="auth__nl-body">We could not find an invite for this account. Ask the person who shared the app with you to add you, then try again.</p>
+        <div class="auth__email">${esc(email)}</div>
+        <div class="auth__actions">
+          <button class="btn btn--secondary" data-act="auth-different">Use a different account</button>
+          <button class="btn btn--primary" data-act="auth-retry">Try again</button>
+        </div>
+      </div>
+    </section>`;
+  }
+  function renderAuth(state /* "signin" | "notlist" */, email = "you@gmail.com") {
+    mount(authMarkup(email));
+    const el = document.querySelector(".auth");
+    if (el) el.dataset.state = state === "notlist" ? "notlist" : "signin";
+    // decode photos before they first show (README): avoids a flash on reveal
+    for (const img of document.querySelectorAll(".auth__photo")) { try { img.decode?.().catch(() => {}); } catch {} }
+  }
+  function authGoTo(state) { const el = document.querySelector(".auth"); if (el) el.dataset.state = state; }
+
   // ---- confetti (motion.css drives the keyframes) --------------------------
   function launchConfetti() {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -692,12 +744,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "close-rating") closeRating();
     else if (act === "exit-study") openExit();
     else if (act === "close-exit") closeExit();
+    // Logged-out screens (PHASE 5: real OAuth + allowlist replaces these)
+    else if (act === "auth-continue") authGoTo("notlist");   // demo: every account → not-on-list
+    else if (act === "auth-retry") authGoTo("signin");
+    else if (act === "auth-different") authGoTo("signin");
     else if (act === "noop") { /* Explain / dispute — later phases */ }
   });
   app.addEventListener("submit", (e) => {
     if (e.target.id === "answer-form") { e.preventDefault(); check(); }
   });
 
-  renderHome();
-  window.__app = { store, user, ctx, lessons };   // console poking
+  // Boot. Real app → Home (demo user). PHASE 5: show Sign-in when logged out,
+  // Not-on-list when the allowlist denies. For now both are dev-route only.
+  function boot() {
+    const m = /(?:^|[#&])dev=(signin|notlist|notonlist)/.exec(location.hash);
+    if (m) { renderAuth(m[1] === "signin" ? "signin" : "notlist"); return; }
+    renderHome();
+  }
+  window.addEventListener("hashchange", boot);
+  boot();
+  window.__app = { store, user, ctx, lessons, renderAuth };   // console poking
 });
