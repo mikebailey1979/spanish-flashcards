@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const { createStore } = self.SpanishFlashcardsStore;
   const { createIdbAdapter } = self.SpanishFlashcardsIdbAdapter;
   const { seedUser } = self.SpanishFlashcardsSeed;
+  const answers = self.SpanishFlashcardsAnswers;   // speech helpers (answerLocale, recognitionAlternatives)
 
   const app = document.getElementById("app");
   const DEMO_ID = "demo-local-user";
@@ -56,7 +57,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   function pickMode() {
     const s = pref("aliyah.mode", ["type", "choice", "speak"], "mixed");
     if (s !== "mixed") return s === "speak" && !speakSupported ? "type" : s;
-    return ["type", "choice"][Math.floor(Math.random() * 2)];   // speak joins the mix in Phase 3b
+    const modes = speakSupported ? ["type", "choice", "speak"] : ["type", "choice"];
+    return modes[Math.floor(Math.random() * modes.length)];
   }
   const promptOf = (c, dir) => dir === "es-en" ? c.front : c.back;   // what she sees
   const answerOf = (c, dir) => dir === "es-en" ? c.back : c.front;   // what's correct
@@ -395,19 +397,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     </div>`;
   }
 
-  function renderQuestion() {
-    const c = S.current = S.queue[S.idx];
+  function renderQuestion() {   // picks direction/mode ONCE, then renders
+    S.current = S.queue[S.idx];
     S.answered = false; S.idk = false; S.res = null; S.rating = null; S.typed = null;
     S.dir = pickDir(); S.mode = pickMode();
+    S.speak = { phase: "ready", heard: "", note: "", rec: null };
+    renderCard();
+    saveResume();   // persist in-progress session so she can resume within 24h
+  }
+  function renderCard() {       // re-renderable (speak phases call this; mode stays)
+    const c = S.current;
     const dirLabel = S.dir === "es-en" ? "Spanish → English" : "English → Spanish";
+    const sub = S.mode === "choice" ? "Pick the match"
+      : S.mode === "speak" ? (S.dir === "es-en" ? "Say it in English" : "Say it in Spanish")
+      : (S.dir === "es-en" ? "Type the English" : "Type the Spanish");
     const stage = `<div class="t-caps study__dir">${dirLabel}</div>
       <h2 class="t-word study__prompt">${esc(promptOf(c, S.dir))}</h2>
-      <div class="study__sub">${S.mode === "choice" ? "Pick the match" : (S.dir === "es-en" ? "Type the English" : "Type the Spanish")}</div>`;
+      <div class="study__sub">${sub}</div>`;
     let controls;
     if (S.mode === "choice") {
       controls = `<div class="study__controls"><div class="options">${distractors(c, S.dir)
         .map((o) => `<button class="option" data-act="pick-option" data-val="${esc(o)}">${esc(o)}</button>`).join("")}</div>
         <button class="idk-link" data-act="idk">I don't know</button></div>`;
+    } else if (S.mode === "speak") {
+      controls = speakControls();
     } else {
       const ph = S.dir === "es-en" ? "type the English translation" : "type the Spanish translation";
       controls = `<form id="answer-form" class="study__controls">
@@ -422,12 +435,69 @@ document.addEventListener("DOMContentLoaded", async () => {
     const input = document.getElementById("answer-input");
     const checkBtn = document.getElementById("check-btn");
     if (input) {
-      // Check stays disabled until she's typed something (board 24).
       input.addEventListener("input", () => { if (checkBtn) checkBtn.disabled = !input.value.trim(); });
       setTimeout(() => input.focus(), 60);
     }
-    saveResume();   // persist in-progress session so she can resume within 24h
   }
+
+  // ---- Speak mode (Phase 3b): Web Speech API, never auto-submits ----------
+  function speakControls() {
+    const sp = S.speak;
+    if (sp.phase === "blocked") {
+      return `<div class="study__controls speak">
+        <div class="speak__mic"><span class="mic-btn mic-btn--off">${icon("mic-off", "icon--lg")}</span>
+          <div class="speak__status"><strong>Speaking isn't available</strong><br>This phone hasn't given the app the microphone. You can type the answer instead.</div></div>
+        <button class="btn btn--primary" data-act="type-instead">Type instead</button>
+        <button class="idk-link" data-act="noop">How to turn on the microphone</button></div>`;
+    }
+    if (sp.phase === "listening") {
+      return `<div class="study__controls speak">
+        <div class="speak__mic"><button class="mic-btn listening" data-act="speak-stop">${icon("mic", "icon--lg")}</button>
+          <div class="dots"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="speak__status">Tap when you're done</div></div>
+        <button class="btn btn--secondary" data-act="idk">I don't know</button></div>`;
+    }
+    if (sp.phase === "heard") {
+      return `<div class="study__controls speak">
+        <div class="heard-panel"><div class="t-caps">I heard</div><div class="heard-word">${esc(sp.heard)}</div></div>
+        <button class="idk-link" data-act="speak-retry">Not what you said? Try again</button>
+        <div class="study__answerrow">
+          <button class="btn btn--secondary btn--idk" data-act="idk">I don't know</button>
+          <button class="btn btn--primary" data-act="speak-check">Check</button></div></div>`;
+    }
+    return `<div class="study__controls speak">
+      <div class="speak__mic"><button class="mic-btn" data-act="speak-start">${icon("mic", "icon--lg")}</button>
+        <div class="speak__status">${sp.note ? esc(sp.note) : "Tap and say it"}</div></div>
+      <div class="study__answerrow">
+        <button class="btn btn--secondary btn--idk" data-act="idk">I don't know</button>
+        <button class="btn btn--secondary" data-act="type-instead">Type instead</button></div></div>`;
+  }
+  function speakStart() {
+    const SR = self.SpeechRecognition || self.webkitSpeechRecognition;
+    if (!SR) { S.speak.phase = "blocked"; return renderCard(); }
+    let rec; try { rec = new SR(); } catch { S.speak.phase = "blocked"; return renderCard(); }
+    rec.lang = answers.answerLocale(S.dir); rec.continuous = false; rec.interimResults = false; rec.maxAlternatives = 5;
+    S.speak = { ...S.speak, phase: "listening", rec, note: "" }; renderCard();
+    rec.onresult = (e) => {
+      const alts = answers.recognitionAlternatives(e);
+      if (!alts.length) return noCapture();
+      S.speak = { ...S.speak, phase: "heard", heard: alts[0], alts }; renderCard();
+    };
+    rec.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") { S.speak.phase = "blocked"; renderCard(); }
+      else noCapture();
+    };
+    rec.onend = () => { if (S.speak.phase === "listening") noCapture(); };
+    try { rec.start(); } catch { noCapture(); }
+  }
+  function noCapture() {   // unintelligible / nothing heard — NEVER auto-submit (board 34)
+    S.speak = { ...S.speak, phase: "ready", heard: "", rec: null, note: "Didn't catch that — try again, or type it." };
+    renderCard();
+  }
+  function speakStop() { try { S.speak.rec && S.speak.rec.stop(); } catch {} }
+  function speakRetry() { S.speak = { ...S.speak, phase: "ready", heard: "", note: "" }; renderCard(); }
+  function speakCheck() { if (!S.speak.heard) return; S.typed = S.speak.heard; finishAnswer(gradeAnswer(S.speak.heard, S.current, S.dir)); }
+  function typeInstead() { try { S.speak.rec && S.speak.rec.abort(); } catch {} S.mode = "type"; renderCard(); }
 
   function finishAnswer(res) {
     S.answered = true; S.idk = false; S.res = res;
@@ -611,6 +681,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "study-tricky") startTricky();
     else if (act === "idk") idk();
     else if (act === "pick-option") chooseAnswer(t.dataset.val);
+    else if (act === "speak-start") speakStart();
+    else if (act === "speak-stop") speakStop();
+    else if (act === "speak-check") speakCheck();
+    else if (act === "speak-retry") speakRetry();
+    else if (act === "type-instead") typeInstead();
     else if (act === "grade-next") gradeNext();
     else if (act === "open-rating") openRating();
     else if (act === "rate") rate(t.dataset.val);

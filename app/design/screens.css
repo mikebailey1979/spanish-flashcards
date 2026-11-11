@@ -60,3 +60,20 @@
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
 .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; gap: var(--s-5); opacity: .9; }
+
+/* ---- Speak mode (Phase 3b) ------------------------------------------------ */
+.study__controls.speak { gap: var(--s-5); }
+.speak__mic { display: flex; flex-direction: column; align-items: center; gap: var(--s-4);
+  margin-bottom: var(--s-4); }
+.mic-btn { width: 84px; height: 84px; border-radius: 50%; border: 0; cursor: pointer;
+  background: #fff; color: var(--btn-text); display: grid; place-items: center; }
+.mic-btn .icon { width: 32px; height: 32px; }
+.mic-btn--off { background: var(--surface-2); color: var(--on-ground); cursor: default; }
+.mic-btn.listening { animation: listen 1.4s ease-in-out infinite; }  /* motion.css keyframes */
+.speak__status { text-align: center; opacity: .9; font-size: var(--t-body-l); max-width: 30ch; }
+.dots { display: flex; gap: 7px; justify-content: center; }
+.dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--on-ground); opacity: .55; }
+.heard-panel { background: var(--surface-1); border-radius: var(--r-row); padding: var(--s-6);
+  text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.heard-panel .t-caps { opacity: .7; }
+.heard-word { font-size: 28px; font-weight: 800; }
