@@ -1030,7 +1030,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  function signOutDemo() { renderAuth("signin"); }
 
   // ---- Delete account (Phase 5b, board 31/33) -----------------------------
   //  Demo models deletion as a 4-week pending flag + restore (the designed window).
@@ -1275,30 +1274,72 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "pick-set") pickSet(t.dataset.kind, t.dataset.val);
     else if (act === "your-data") renderYourData();
     else if (act === "export-data") doExport();
-    else if (act === "sign-out") signOutDemo();
+    else if (act === "sign-out") doSignOut();
     else if (act === "delete-account") openDeleteAccount();
     else if (act === "delete-confirm") doDeleteAccount();
     else if (act === "account-restore") restoreAccount();
     else if (act === "install-dismiss") dismissInstall();
-    // Logged-out screens (PHASE 5: real OAuth + allowlist replaces these)
-    else if (act === "auth-continue") authGoTo("notlist");   // demo: every account → not-on-list
-    else if (act === "auth-retry") authGoTo("signin");
-    else if (act === "auth-different") authGoTo("signin");
+    // Logged-out screens
+    else if (act === "auth-continue") signInGoogle();
+    else if (act === "auth-retry") authGate();
+    else if (act === "auth-different") signInGoogle();
     else if (act === "noop") { /* Explain / dispute — later phases */ }
   });
   app.addEventListener("submit", (e) => {
     if (e.target.id === "answer-form") { e.preventDefault(); check(); }
   });
 
-  // Boot. Real app → Home (demo user). PHASE 5: show Sign-in when logged out,
-  // Not-on-list when the allowlist denies. For now both are dev-route only.
-  function boot() {
-    applyTheme();   // honor the saved Appearance preference
+  // ---- auth gate (Phase 5c) — INERT unless configured ----------------------
+  //  Set localStorage "aliyah.supabase" = {"url":"https://api.aliyahsflashcards.com",
+  //  "anonKey":"<ANON_KEY>"} to turn real Google sign-in on. With no config the app
+  //  stays in local demo mode and boots straight to Home exactly as before.
+  //  Backend prerequisites (Mike runs): Google enabled on the box's GoTrue + a Google
+  //  OAuth client + SITE_URL = the Netlify origin. See PROGRESS.md.
+  //  NOTE: per-account data binding + cross-device sync land once the backend is live;
+  //  for now the signed-in gate decides access, and local data stays on the demo store.
+  function authConfig() { try { return JSON.parse(localStorage.getItem("aliyah.supabase") || "null"); } catch { return null; } }
+  let _auth = null;
+  function loadSupabase() {
+    if (self.supabase && self.supabase.createClient) return Promise.resolve(self.supabase);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
+      s.onload = () => resolve(self.supabase); s.onerror = () => reject(new Error("supabase-js failed to load"));
+      document.head.appendChild(s);
+    });
+  }
+  async function getAuth() {
+    const cfg = authConfig(); if (!cfg || !cfg.url || !cfg.anonKey) return null;
+    if (_auth) return _auth;
+    await loadSupabase();
+    _auth = self.SpanishFlashcardsAuth.createAuth({ url: cfg.url, anonKey: cfg.anonKey });
+    _auth.onAuthChange((ev) => { if (ev === "SIGNED_IN" || ev === "SIGNED_OUT") authGate(); });
+    return _auth;
+  }
+  async function signInGoogle() {
+    let auth = null; try { auth = await getAuth(); } catch {}
+    if (!auth) { authGoTo("notlist"); return; }   // unconfigured demo: show the designed crossfade
+    await auth.signInWithGoogle(location.origin + location.pathname);
+  }
+  async function doSignOut() {
+    try { const auth = await getAuth(); if (auth) await auth.signOut(); } catch {}
+    renderAuth("signin");
+  }
+  // Decide the first screen. Dev route (#dev=…) always wins for design review.
+  async function authGate() {
+    applyTheme();
     const m = /(?:^|[#&])dev=(signin|notlist|notonlist)/.exec(location.hash);
     if (m) { renderAuth(m[1] === "signin" ? "signin" : "notlist"); return; }
-    renderHome();
+    let auth = null; try { auth = await getAuth(); } catch {}
+    if (!auth) { renderHome(); return; }            // unconfigured → local demo
+    let session = null; try { session = await auth.getSession(); } catch {}
+    if (!session) { renderAuth("signin"); return; }
+    let allowed = false; try { allowed = await auth.isAllowed(); } catch {}
+    if (!allowed) { renderAuth("notlist", (session.user && session.user.email) || "you@gmail.com"); return; }
+    renderHome();                                   // allowed (per-account data + sync: backend-live)
   }
-  window.addEventListener("hashchange", boot);
-  boot();
-  window.__app = { store, user, ctx, lessons, renderAuth };   // console poking
+  function boot() { authGate(); }
+  window.addEventListener("hashchange", authGate);
+  authGate();
+  window.__app = { store, user, ctx, lessons, renderAuth, authConfig };   // console poking
 });
