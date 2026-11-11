@@ -48,6 +48,70 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   async function dueList(ls) { return store.selectDue(ctx, ls, now()); }
 
+  // ---- metrics (derived from review history + progress) --------------------
+  async function loadData() {
+    const [events, progress, cards] = await Promise.all([
+      store.adapter.getAll("reviewEvents"),
+      store.adapter.getAll("progress"),
+      store.adapter.getAll("cards"),
+    ]);
+    const mine = (r) => r && r.deletedAt == null && r.userId === ctx.studierId;
+    const evs = events.filter(mine).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+    const byCard = new Map();
+    for (const e of evs) { if (!byCard.has(e.cardId)) byCard.set(e.cardId, []); byCard.get(e.cardId).push(e); }
+    const prog = new Map();
+    for (const p of progress.filter(mine)) prog.set(p.cardId, p.srs);
+    return { evs, byCard, prog, cards: cards.filter((c) => c && c.deletedAt == null && c.ownerId === ctx.contentOwnerId) };
+  }
+  // Ready for Testing: last two answers both not "again".
+  function isReady(id, D) { const es = D.byCard.get(id); return !!es && es.length >= 2 && es.slice(-2).every((e) => e.grade !== "again"); }
+  // Tricky: 2+ lapses, or still box 0–1 after 3+ tries; leaves after 3 right in a row.
+  function isTricky(id, D) {
+    const s = D.prog.get(id); if (!s) return false;
+    if (!(s.lapses >= 2 || (s.box <= 1 && s.reps >= 3))) return false;
+    const es = D.byCard.get(id) || [];
+    return !(es.length >= 3 && es.slice(-3).every((e) => e.grade !== "again"));
+  }
+  function lessonReady(l, D) { return l.cardIds.length ? Math.round(l.cardIds.filter((id) => isReady(id, D)).length / l.cardIds.length * 100) : 0; }
+  function trickyCards(D) { return D.cards.filter((c) => isTricky(c.id, D)); }
+  const dayKey = (ts) => { const d = new Date(ts); return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate(); };
+  function streak(D) {
+    const days = new Set(D.evs.map((e) => dayKey(Date.parse(e.at))));
+    let n = 0; const d = new Date();
+    if (!days.has(dayKey(d.getTime()))) d.setDate(d.getDate() - 1);   // grace if today not studied yet
+    while (days.has(dayKey(d.getTime()))) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+  function weekStats(D) {
+    const wk = D.evs.filter((e) => Date.parse(e.at) >= weekStart().getTime());
+    const cards = new Set(wk.map((e) => e.cardId));
+    let good = 0; for (const id of cards) { const f = wk.find((e) => e.cardId === id); if (f && f.grade !== "again") good++; }
+    let sessions = 0, last = 0; for (const e of wk) { const t = Date.parse(e.at); if (t - last > 20 * 60000) sessions++; last = t; }
+    return { words: cards.size, pct: cards.size ? Math.round(good / cards.size * 100) : 0, sessions };
+  }
+
+  // ---- selection: pull-regardless-of-due so study is never empty -----------
+  const SESSION_SIZE = 20;   // default batch; Me "session length" (Full/10/20/30) is Phase 5
+  const weakness = (srs) => !srs || srs.reps === 0 ? 1000 : srs.lapses * 10 + (5 - srs.box) * 2 + (srs.reps < 3 ? 3 : 0);
+  async function practicePool(ls) {
+    const ids = [...new Set(ls.flatMap((l) => l.cardIds))];
+    const cards = await store.cardsByIds(ids, ctx.contentOwnerId);
+    const out = [];
+    for (const c of cards) { const p = await store.getProgress(ctx.studierId, c.id); out.push({ c, w: weakness(p ? p.srs : null) }); }
+    out.sort((a, b) => b.w - a.w);
+    return out.map((x) => x.c);
+  }
+  async function buildQueue(ls, size) {
+    const due = await store.selectDue(ctx, ls, now());      // due + unseen, due-first
+    const seen = new Set(due.map((c) => c.id));
+    const queue = due.slice();
+    if (!size || queue.length < size) {                      // fill weakest not-due so it's never empty
+      for (const c of await practicePool(ls)) { if (!seen.has(c.id)) { queue.push(c); seen.add(c.id); if (size && queue.length >= size) break; } }
+    }
+    return size ? queue.slice(0, size) : queue;
+  }
+
   const tabbar = (active) => `
     <nav class="tabbar">
       ${[["home", "Home"], ["lessons", "Lessons"], ["add", "Add"], ["progress", "Progress"], ["me", "Me"]]
@@ -59,33 +123,41 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ---- screens -------------------------------------------------------------
   async function renderHome() {
+    const D = await loadData();
     const due = await dueList(lessons);
     const byLesson = {};
     for (const c of due) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
-    const hero = due.length
-      ? (() => {
-          const l = cardLesson[due[0].id];
-          const n = byLesson[l.id] || due.length;
-          return `<div class="hero">
-            <div class="t-caps hero__label">Continue</div>
-            <div class="t-title">${esc(l.name)}</div>
-            <div style="display:flex;align-items:baseline;gap:10px">
-              <span class="t-hero hero__num">${n}</span>
-              <span class="t-label" style="opacity:.8">words to study</span>
-            </div>
-            <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}">Study</button>
-          </div>`;
-        })()
-      : `<div class="hero" style="align-items:center;text-align:center">
-          <div class="mark" style="width:72px;height:72px;animation:none">${icon("check", "")}<style></style></div>
-          <div class="t-title">You're all set for now</div>
-          <div class="muted">Everything you needed is done. Want to keep going anyway?</div>
-          <button class="btn btn--primary" data-act="study-all">Keep practicing</button>
-        </div>`;
+    const st = streak(D), tricky = trickyCards(D).length;
+    let hero;
+    if (due.length) {
+      const l = cardLesson[due[0].id], n = byLesson[l.id] || due.length;
+      hero = `<div class="hero">
+        <div class="t-caps hero__label">Continue</div>
+        <div class="t-title">${esc(l.name)}</div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span class="t-hero hero__num">${n}</span>
+          <span class="t-label" style="opacity:.8">words to study<br>${lessonReady(l, D)}% of this lesson Ready for Testing</span>
+        </div>
+        <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}">Study</button>
+      </div>`;
+    } else {
+      hero = `<div class="hero" style="align-items:center;text-align:center">
+        <div class="mark" style="width:72px;height:72px;animation:none"><i class="mark__icon icon--check" style="background:var(--btn-text)"></i></div>
+        <div class="t-title">You're all set for now</div>
+        <div class="muted">Everything you've studied is fresh. Got new homework?</div>
+        <button class="btn btn--primary" data-act="keep-practicing">Keep practicing</button>
+      </div>`;
+    }
+    const trickyRow = `<button class="row" data-act="practice-tricky">
+      <span class="row__main"><span class="row__title">Practice tricky words</span>
+        <span class="row__meta">The ones that need another look</span></span>
+      ${tricky ? `<span class="pill">${tricky}</span>` : ""}</button>`;
     const list = lessons.map((l) => lessonRow(l, byLesson[l.id] || 0)).join("");
     mount(`<section class="screen screen--tabbed">
-      <div class="home__head"><h1 class="t-h1">${esc(user.displayName)}</h1></div>
+      <div class="home__head"><h1 class="t-h1">${esc(user.displayName)}</h1>
+        ${st ? `<span class="streak-pill">${icon("flame")}${st}-day streak</span>` : ""}</div>
       ${hero}
+      ${trickyRow}
       <div class="section-label"><span class="t-caps" style="opacity:.75">Your lessons</span></div>
       <div class="list">${list}</div>
     </section>${tabbar("home")}`);
@@ -122,35 +194,106 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function renderLessonDetail(id) {
     const l = lessons.find((x) => x.id === id);
     if (!l) return renderLessons();
-    const n = (await dueList([l])).length;
+    const D = await loadData();
+    const cards = await store.cardsByIds(l.cardIds, ctx.contentOwnerId);
+    const ready = cards.filter((c) => isReady(c.id, D)).length;
+    const started = cards.filter((c) => (D.byCard.get(c.id) || []).length > 0).length;
+    const pct = lessonReady(l, D), tricky = cards.filter((c) => isTricky(c.id, D)).length;
+    const secMap = new Map();
+    for (const c of cards) { const k = c.category || "—"; if (!secMap.has(k)) secMap.set(k, []); secMap.get(k).push(c); }
+    const sections = [...secMap.entries()].map(([name, cs]) => {
+      const p = Math.round(cs.filter((c) => isReady(c.id, D)).length / cs.length * 100);
+      return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span></div>`;
+    }).join("");
     mount(`<section class="screen screen--tabbed">
-      <div class="study-head__row" style="margin-bottom:var(--s-8)">
+      <div class="study-head__row" style="margin-bottom:var(--s-7)">
         <button class="study-head__exit" data-act="lessons">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">${esc(l.name)}</span>
       </div>
       <div class="hero">
-        <div class="t-caps hero__label">${n ? n + " words to study" : "All caught up"}</div>
-        <div class="t-title">${l.cardIds.length} words</div>
-        <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}">Study this lesson</button>
+        <div class="t-hero" style="font-size:clamp(44px,15vw,64px)">${pct}%</div>
+        <div class="t-label" style="opacity:.85">Ready for Testing · ${cards.length} words</div>
+        <div class="progress"><i style="width:${pct}%"></i></div>
       </div>
+      <div class="row" style="cursor:default;justify-content:space-around;text-align:center;margin-top:var(--s-4)">
+        <span><div class="t-title">${ready}</div><div class="t-label" style="opacity:.7">Ready</div></span>
+        <span><div class="t-title">${Math.max(0, started - ready)}</div><div class="t-label" style="opacity:.7">practicing</div></span>
+        <span><div class="t-title">${cards.length - started}</div><div class="t-label" style="opacity:.7">not started</div></span>
+      </div>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">By section</span></div>
+      <div class="list">${sections}</div>
+      ${tricky ? `<button class="row" data-act="practice-tricky" style="margin-top:var(--s-5)"><span class="row__main"><span class="row__title">${tricky} tricky words</span><span class="row__meta">Practice them in Tricky words</span></span>${icon("chevron", "icon--sm")}</button>` : ""}
+      <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}" style="margin-top:var(--s-7)">Study this lesson</button>
     </section>${tabbar("lessons")}`);
   }
 
-  function renderPlaceholder(tab, title) {
+  async function renderProgress() {
+    const D = await loadData();
+    if (!D.evs.length) {
+      return mount(`<section class="screen screen--tabbed">
+        <h1 class="t-h1" style="margin-bottom:var(--s-7)">Progress</h1>
+        <div class="placeholder">${icon("progress")}<div class="t-title">Nothing here yet</div>
+          <div class="muted">Finish your first study session and your progress shows up here.</div>
+          <button class="btn btn--primary" data-act="study-all" style="max-width:260px">Start studying</button></div>
+      </section>${tabbar("progress")}`);
+    }
+    const st = streak(D), wk = weekStats(D), tricky = trickyCards(D).length;
+    const days = new Set(D.evs.map((e) => dayKey(Date.parse(e.at))));
+    const mon = weekStart();
+    const dots = ["M", "T", "W", "T", "F", "S", "S"].map((lbl, i) => {
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      const on = days.has(dayKey(d.getTime()));
+      return `<span style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        <span style="width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:${on ? "#fff" : "transparent"};box-shadow:${on ? "none" : "inset 0 0 0 2px var(--track)"}">${on ? `<i class="icon icon--sm icon--check" style="background:var(--correct);width:16px;height:16px"></i>` : ""}</span>
+        <span class="t-label" style="opacity:.7">${lbl}</span></span>`;
+    }).join("");
+    const tiles = [[wk.words, "words practiced this week"], [wk.pct + "%", "right on the first try"], [wk.sessions, "study sessions"]]
+      .map(([n, t]) => `<div class="hero" style="flex:1;padding:var(--s-6) var(--s-5);gap:4px"><div class="t-title">${n}</div><div class="t-label" style="opacity:.75">${t}</div></div>`).join("");
+    const readyRows = lessons.map((l) => { const p = lessonReady(l, D); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span></div>`; }).join("");
     mount(`<section class="screen screen--tabbed">
-      <h1 class="t-h1">${title}</h1>
-      <div class="placeholder">${icon(tab === "progress" ? "progress" : "me")}
-        <div class="t-title">Coming in a later phase</div>
-        <div class="muted">This screen is designed and specced — not built yet.</div>
+      <h1 class="t-h1" style="margin-bottom:var(--s-6)">Progress</h1>
+      <div class="hero">
+        <div style="display:flex;align-items:center;gap:8px">${icon("flame", "icon--lg")}<span class="t-hero" style="font-size:44px">${st}</span><span class="t-title">day streak</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:var(--s-3)">${dots}</div>
+        <div class="muted" style="margin-top:var(--s-3)">Continue practicing and learning to keep your streak!</div>
       </div>
-    </section>${tabbar(tab)}`);
+      <div style="display:flex;gap:var(--s-4);margin-top:var(--s-5)">${tiles}</div>
+      <button class="row" data-act="practice-tricky" style="margin-top:var(--s-5)">
+        <span class="row__main"><span class="t-caps" style="opacity:.75">Tricky words</span><span class="t-title">${tricky} words</span><span class="row__meta">that need another look</span></span>
+        <span class="chip" style="background:#fff;color:var(--btn-text)">Practice</span></button>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">Lessons · Ready for Testing</span></div>
+      <div class="list">${readyRows}</div>
+    </section>${tabbar("progress")}`);
+  }
+
+  async function renderTricky() {
+    const D = await loadData();
+    const tc = trickyCards(D);
+    const head = `<div class="study-head__row" style="margin-bottom:var(--s-7)"><button class="study-head__exit" data-act="home">${icon("back")}</button><span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Tricky words</span></div>`;
+    if (!tc.length) {
+      return mount(`<section class="screen screen--tabbed">${head}
+        <div class="empty"><i class="icon icon--star"></i><div class="empty__title">No tricky words right now</div>
+          <div class="empty__text">Words you miss a few times show up here so you can practice them. Keep going!</div>
+          <button class="btn btn--primary" data-act="lessons" style="max-width:260px">Back to lessons</button></div>
+      </section>${tabbar("home")}`);
+    }
+    const byLesson = {};
+    for (const c of tc) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
+    const rows = Object.entries(byLesson).map(([lid, n]) => { const l = lessons.find((x) => x.id === lid); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l ? l.name : "")}</span></span><span class="pill">${n}</span></div>`; }).join("");
+    mount(`<section class="screen screen--tabbed">${head}
+      <div class="hero"><div class="t-hero" style="font-size:56px">${tc.length}</div><div class="t-label" style="opacity:.85">words that need another look</div>
+        <div class="muted" style="margin-top:4px">This group fills and empties by itself. A word leaves once you get it right 3 times in a row.</div></div>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">From your lessons</span></div>
+      <div class="list">${rows}</div>
+      <button class="btn btn--primary" data-act="study-tricky" style="margin-top:var(--s-7)">Practice tricky words</button>
+    </section>${tabbar("home")}`);
   }
 
   // ---- study session -------------------------------------------------------
-  let S = null;  // { queue, idx, right, total, current, answered, res, grade, idk }
-  async function startSession(ls) {
-    const queue = await store.selectDue(ctx, ls, now(), 20);
-    S = { queue, idx: 0, right: 0, total: queue.length, current: null, answered: false, res: null, grade: null, idk: false };
+  let S = null;  // { queue, idx, right, total, current, answered, res, grade, idk, rating }
+  async function startSession(ls) { startWith(await buildQueue(ls, SESSION_SIZE)); }
+  function startWith(queue) {
+    S = { queue, idx: 0, right: 0, total: queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null };
     if (!queue.length) return renderAllSet();
     renderQuestion();
   }
@@ -170,7 +313,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderQuestion() {
     const c = S.current = S.queue[S.idx];
-    S.answered = false; S.idk = false; S.res = null;
+    S.answered = false; S.idk = false; S.res = null; S.rating = null;
     mount(`<section class="screen study">
       ${studyHead()}
       <div class="study__stage">
@@ -230,6 +373,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       link = `<div class="linkrow"><a data-act="noop">That should've counted</a> · <a data-act="noop">Explain</a></div>`;
       nextLabel = "Next";
     }
+    const toolRow = S.idk ? "" : `<div class="toolrow" style="margin-bottom:var(--s-5)">
+      <button class="toolbtn toolbtn--icon" data-act="noop">${icon("speaker", "icon--sm")}</button>
+      <button class="toolbtn" data-act="open-rating">${icon("face-good", "icon--sm")} How was that?</button>
+      <button class="toolbtn" data-act="noop">Explain</button></div>`;
     mount(`<section class="screen study ${stateClass}">
       ${studyHead()}
       <div class="result">
@@ -242,18 +389,51 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>
         ${link}
       </div>
+      ${toolRow}
       <button class="btn btn--primary" data-act="grade-next">${nextLabel}</button>
-    </section>`);
+    </section><div id="sheet-host"></div>`);
     if (correct) launchConfetti();
   }
 
   async function gradeNext() {
-    const input = S.idk ? null : null;
+    // S.grade is the auto grade, possibly amended by her rating (see rate()).
     await store.review(ctx, S.current, S.grade, "type", now(), null);
     if (S.res && S.res.correct && !S.idk) S.right++;
     S.idx++;
     if (S.idx >= S.queue.length) return renderDone();
     renderQuestion();
+  }
+
+  // ---- optional face rating: may lower a correct grade or move it among
+  // hard/good/easy, but never lifts a miss (board 26). ----------------------
+  const RATE_GRADE = { easy: "easy", good: "good", tricky: "hard", didnt: "again" };
+  function openRating() {
+    const host = document.getElementById("sheet-host"); if (!host) return;
+    host.innerHTML = `<div class="scrim" data-act="close-rating"></div>
+      <div class="sheet"><div class="sheet__handle"></div>
+        <div class="sheet__title">How was that one?</div>
+        <div class="sheet__text">Only you see this. It helps pick what to practice.</div>
+        <div class="faces">${[["easy", "Easy", "face-easy"], ["good", "Good", "face-good"], ["tricky", "Tricky", "face-tricky"], ["didnt", "Didn't know", "face-didnt"]]
+          .map(([v, l, ic]) => `<button class="face" data-act="rate" data-val="${v}" ${S.rating === v ? 'aria-pressed="true"' : ""}><i class="icon icon--${ic}"></i>${l}</button>`).join("")}</div>
+        <button class="btn btn--primary" data-act="close-rating">Done</button></div>`;
+  }
+  function rate(val) { S.rating = val; if (S.grade !== "again") S.grade = RATE_GRADE[val]; openRating(); }
+  function closeRating() { const host = document.getElementById("sheet-host"); if (host) host.innerHTML = ""; }
+  function openExit() {
+    app.insertAdjacentHTML("beforeend", `<div class="scrim" data-act="close-exit"></div>
+      <div class="sheet"><div class="sheet__handle"></div>
+        <div class="sheet__title">Stop for now?</div>
+        <div class="sheet__text">Your progress is saved. You can pick up where you left off.</div>
+        <button class="btn btn--primary" data-act="close-exit">Keep going</button>
+        <button class="btn btn--secondary" data-act="home">Stop for now</button></div>`);
+  }
+  function closeExit() { app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove()); }
+  async function startTricky() { startWith(trickyCards(await loadData())); }
+  function renderPlaceholder(tab, title) {
+    mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
+      <div class="placeholder">${icon(tab === "me" ? "me" : "add")}<div class="t-title">Coming in a later phase</div>
+        <div class="muted">This screen is designed and specced — not built yet.</div></div>
+    </section>${tabbar(tab === "me" ? "me" : "home")}`);
   }
 
   function renderDone() {
@@ -311,18 +491,24 @@ document.addEventListener("DOMContentLoaded", async () => {
       const tab = t.dataset.tab;
       if (tab === "home") renderHome();
       else if (tab === "lessons") renderLessons();
-      else if (tab === "progress") renderPlaceholder("progress", "Progress");
+      else if (tab === "progress") renderProgress();
       else if (tab === "me") renderPlaceholder("me", "Me");
-      else if (tab === "add") renderPlaceholder("home", "Add homework");
+      else if (tab === "add") renderPlaceholder("add", "Add homework");
     }
     else if (act === "home") renderHome();
     else if (act === "lessons") renderLessons();
     else if (act === "open-lesson") renderLessonDetail(id);
     else if (act === "study-lesson") startSession([lessons.find((l) => l.id === id)]);
-    else if (act === "study-all") startSession(lessons);
+    else if (act === "study-all" || act === "keep-practicing") startSession(lessons);
+    else if (act === "practice-tricky") renderTricky();
+    else if (act === "study-tricky") startTricky();
     else if (act === "idk") idk();
     else if (act === "grade-next") gradeNext();
-    else if (act === "exit-study") renderHome();   // Phase 2: "Stop for now?" sheet
+    else if (act === "open-rating") openRating();
+    else if (act === "rate") rate(t.dataset.val);
+    else if (act === "close-rating") closeRating();
+    else if (act === "exit-study") openExit();
+    else if (act === "close-exit") closeExit();
     else if (act === "noop") { /* Explain / dispute — later phases */ }
   });
   app.addEventListener("submit", (e) => {
