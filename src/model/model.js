@@ -111,6 +111,8 @@
    *   cardId: string,
    *   at: string,
    *   grade: Grade,
+   *   autoGrade: Grade,
+   *   rating: ("easy"|"good"|"tricky"|"didnt")|null,
    *   typedAnswer: string|null,
    *   mode: ReviewMode
    * }} ReviewEvent
@@ -224,6 +226,10 @@
       cardId: input.cardId,
       at: toIso(typeof input.at === "number" ? input.at : now),
       grade: input.grade,
+      // autoGrade = the grade the matcher produced; grade = what was persisted
+      // after an optional face rating (never lifts a miss). rating = her face, or null.
+      autoGrade: input.autoGrade == null ? input.grade : input.autoGrade,
+      rating: input.rating == null ? null : input.rating,
       typedAnswer: input.typedAnswer == null ? null : String(input.typedAnswer),
       mode: input.mode,
     });

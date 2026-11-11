@@ -111,6 +111,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     return size ? queue.slice(0, size) : queue;
   }
+  function sessionSize() {   // Me "session length" preference; picker UI is Phase 5
+    try { const v = localStorage.getItem("aliyah.sessionSize"); return v === "full" ? null : (v ? +v : SESSION_SIZE); }
+    catch { return SESSION_SIZE; }
+  }
+
+  // ---- resume: keep an in-progress session for 24h (board 26) --------------
+  const RESUME_KEY = "aliyah.resume";
+  function saveResume() {
+    if (!S || !S.queue.length) return;
+    try { localStorage.setItem(RESUME_KEY, JSON.stringify({ ids: S.queue.map((c) => c.id), idx: S.idx, right: S.right, total: S.total, at: Date.now() })); } catch {}
+  }
+  function clearResume() { try { localStorage.removeItem(RESUME_KEY); } catch {} }
+  function getResume() {
+    try {
+      const r = JSON.parse(localStorage.getItem(RESUME_KEY) || "null");
+      if (!r || Date.now() - r.at > 24 * 3600000 || r.idx >= r.ids.length) { clearResume(); return null; }
+      return r;
+    } catch { return null; }
+  }
+  async function resumeSession() {
+    const r = getResume(); if (!r) return renderHome();
+    const cards = await store.cardsByIds(r.ids, ctx.contentOwnerId);
+    const map = new Map(cards.map((c) => [c.id, c]));
+    const queue = r.ids.map((id) => map.get(id)).filter(Boolean);
+    if (!queue.length) { clearResume(); return renderHome(); }
+    S = { queue, idx: Math.min(r.idx, queue.length - 1), right: r.right, total: r.total || queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, autoGrade: null };
+    renderQuestion();
+  }
 
   const tabbar = (active) => `
     <nav class="tabbar">
@@ -128,8 +156,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     const byLesson = {};
     for (const c of due) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
     const st = streak(D), tricky = trickyCards(D).length;
+    const resume = getResume();
     let hero;
-    if (due.length) {
+    if (resume) {
+      const rl = cardLesson[resume.ids[resume.idx]];
+      const left = resume.total - resume.idx, pct = resume.total ? Math.round(resume.idx / resume.total * 100) : 0;
+      hero = `<div class="hero">
+        <div class="t-caps hero__label">Resume</div>
+        <div class="t-title">${esc(rl ? rl.name : "Your session")}</div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span class="t-hero hero__num">${left}</span>
+          <span class="t-label" style="opacity:.8">left in this session</span>
+        </div>
+        <div class="progress"><i style="width:${pct}%"></i></div>
+        <button class="btn btn--primary" data-act="resume">Resume</button>
+        <button data-act="new-session" style="background:none;border:0;color:inherit;opacity:.85;font-weight:700;cursor:pointer;padding:var(--s-3)">Start a new session instead</button>
+      </div>`;
+    } else if (due.length) {
       const l = cardLesson[due[0].id], n = byLesson[l.id] || due.length;
       hero = `<div class="hero">
         <div class="t-caps hero__label">Continue</div>
@@ -291,7 +334,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ---- study session -------------------------------------------------------
   let S = null;  // { queue, idx, right, total, current, answered, res, grade, idk, rating }
-  async function startSession(ls) { startWith(await buildQueue(ls, SESSION_SIZE)); }
+  async function startSession(ls) { startWith(await buildQueue(ls, sessionSize())); }
   function startWith(queue) {
     S = { queue, idx: 0, right: 0, total: queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null };
     if (!queue.length) return renderAllSet();
@@ -337,6 +380,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       input.addEventListener("input", () => { if (checkBtn) checkBtn.disabled = !input.value.trim(); });
       setTimeout(() => input.focus(), 60);
     }
+    saveResume();   // persist in-progress session so she can resume within 24h
   }
 
   function check() {
@@ -344,12 +388,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const input = document.getElementById("answer-input");
     if (!input || !input.value.trim()) return;   // empty is never a miss (board 24)
     const res = matcher.isCorrect(input.value, S.current);
-    S.answered = true; S.idk = false; S.res = res; S.grade = gradeFor(res, false);
+    S.answered = true; S.idk = false; S.res = res; S.grade = gradeFor(res, false); S.autoGrade = S.grade;
     renderResult();
   }
   function idk() {
     if (S.answered) return;
-    S.answered = true; S.idk = true; S.res = { correct: false, why: null }; S.grade = "again";
+    S.answered = true; S.idk = true; S.res = { correct: false, why: null }; S.grade = "again"; S.autoGrade = "again";
     renderResult();
   }
 
@@ -397,10 +441,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function gradeNext() {
     // S.grade is the auto grade, possibly amended by her rating (see rate()).
-    await store.review(ctx, S.current, S.grade, "type", now(), null);
+    await store.review(ctx, S.current, S.grade, "type", now(), null, { autoGrade: S.autoGrade, rating: S.rating });
     if (S.res && S.res.correct && !S.idk) S.right++;
     S.idx++;
-    if (S.idx >= S.queue.length) return renderDone();
+    if (S.idx >= S.queue.length) { clearResume(); return renderDone(); }
     renderQuestion();
   }
 
@@ -500,6 +544,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "open-lesson") renderLessonDetail(id);
     else if (act === "study-lesson") startSession([lessons.find((l) => l.id === id)]);
     else if (act === "study-all" || act === "keep-practicing") startSession(lessons);
+    else if (act === "resume") resumeSession();
+    else if (act === "new-session") { clearResume(); renderHome(); }
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
     else if (act === "idk") idk();

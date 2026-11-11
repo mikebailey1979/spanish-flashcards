@@ -127,9 +127,11 @@
      * @param {ReviewMode} mode
      * @param {number} now epoch ms
      * @param {string|null} [typedAnswer]
+     * @param {{autoGrade?: Grade, rating?: string|null}} [meta] optional: the pre-rating
+     *   auto grade and her face rating (recorded on the event; `grade` is what's applied).
      * @returns {Promise<{srs: SrsState, persisted: boolean}>}
      */
-    async function review(ctx, card, grade, mode, now, typedAnswer) {
+    async function review(ctx, card, grade, mode, now, typedAnswer, meta) {
       const prev = await getProgress(ctx.studierId, card.id);
       const prevSrs = prev ? prev.srs : scheduler.initSrs(now);
       const nextSrs = scheduler.grade(prevSrs, grade, now);
@@ -143,7 +145,12 @@
         }
         await put("progress", rec);
         const ev = model.createReviewEvent(
-          { userId: ctx.studierId, cardId: card.id, grade, mode, typedAnswer: typedAnswer ?? null, at: now },
+          {
+            userId: ctx.studierId, cardId: card.id, grade, mode,
+            autoGrade: meta && meta.autoGrade != null ? meta.autoGrade : grade,
+            rating: meta && meta.rating != null ? meta.rating : null,
+            typedAnswer: typedAnswer ?? null, at: now,
+          },
           now
         );
         await put("reviewEvents", ev);
