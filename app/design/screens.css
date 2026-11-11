@@ -148,3 +148,8 @@
   border-radius: var(--r-pill); padding: 0 var(--s-5); font-weight: 700; cursor: pointer; font-size: 13px; }
 .segmented.seg3 { display: flex; width: 100%; }
 .segmented.seg3 button { flex: 1; font-size: 13px; padding: 10px 6px; }
+
+/* ---- Me profile avatar (Phase 5a) --------------------------------------- */
+.avatar { width: 52px; height: 52px; flex: none; border-radius: 50%;
+  background: #fff; color: var(--btn-text); display: grid; place-items: center;
+  font-weight: 800; font-size: 22px; }

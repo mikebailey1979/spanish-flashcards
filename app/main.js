@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const { createIdbAdapter } = self.SpanishFlashcardsIdbAdapter;
   const { seedUser } = self.SpanishFlashcardsSeed;
   const answers = self.SpanishFlashcardsAnswers;   // speech helpers (answerLocale, recognitionAlternatives)
+  const io = self.SpanishFlashcardsIO;             // export/import envelope (Your data → Export)
 
   const app = document.getElementById("app");
   const DEMO_ID = "demo-local-user";
@@ -285,7 +286,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const byLesson = {};
     for (const c of due) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
     const list = lessons.map((l) => lessonRow(l, byLesson[l.id] || 0)).join("");
-    const deletedCount = (await store.listDeletedLessons(DEMO_ID)).length;   // PHASE 5: moves to Me → Recently deleted
     mount(`<section class="screen screen--tabbed">
       <h1 class="t-h1" style="margin-bottom:var(--s-7)">Lessons</h1>
       <div class="list">
@@ -296,10 +296,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         </button>
         ${list}
       </div>
-      ${deletedCount ? `<button class="row" data-act="recently-deleted" style="margin-top:var(--s-5)">
-        <span class="row__main"><span class="row__title">Recently deleted</span>
-          <span class="row__meta">${deletedCount} lesson${deletedCount === 1 ? "" : "s"} · restore within 7 days</span></span>
-        ${icon("chevron", "icon--sm")}</button>` : ""}
     </section>${tabbar("lessons")}`);
   }
 
@@ -712,13 +708,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }).join("");
     mount(`<section class="screen screen--tabbed">
       <div class="study-head__row" style="margin-bottom:var(--s-7)">
-        <button class="study-head__exit" data-act="lessons">${icon("back")}</button>
+        <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Recently deleted</span>
       </div>
       <div class="muted" style="margin-bottom:var(--s-5)">Lessons stay here for 7 days, then they are gone for good. Restoring brings back every word and your progress on it, on all your devices.</div>
       ${deleted.length ? `<div class="list">${rows}</div>`
         : `<div class="placeholder">${icon("restore")}<div class="t-title">Nothing here</div><div class="muted">Deleted lessons show up here for 7 days.</div></div>`}
-    </section>${tabbar("lessons")}`);
+    </section>${tabbar("me")}`);
   }
   async function restoreFromList(id) { await store.restoreLesson(id, now()); await refreshContent(); renderRecentlyDeleted(); }
 
@@ -928,23 +924,111 @@ document.addEventListener("DOMContentLoaded", async () => {
     app.querySelectorAll(".toast").forEach((n) => n.remove()); renderLessonDetail(lid);
   }
   async function startTricky() { startWith(trickyCards(await loadData())); }
-  // Me (Phase 4d: the global Exact toggle; the rest of Me is Phase 5).
+
+  // ---- Me / settings (Phase 5a) -------------------------------------------
+  const getPref = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+  const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  function pronOn() { return getPref("aliyah.pronunciation", "on") !== "off"; }
+  function reduceMotion() {
+    const m = getPref("aliyah.motion", "follow");
+    if (m === "reduce") return true; if (m === "full") return false;
+    return matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  function applyTheme() {
+    const a = getPref("aliyah.appearance", "system"); const root = document.documentElement;
+    if (a === "light" || a === "dark") root.setAttribute("data-theme", a); else root.removeAttribute("data-theme");
+  }
+  const PICKERS = {
+    direction: { key: "aliyah.direction", dflt: "mixed", title: "How words are shown",
+      opts: [["mixed", "Mixed", "Random each card"], ["es-en", "Spanish → English", "See Spanish, type English"], ["en-es", "English → Spanish", "See English, type Spanish"]] },
+    mode: { key: "aliyah.mode", dflt: "mixed", title: "How you answer",
+      opts: [["mixed", "Mixed", "Random each card"], ["type", "Type it", ""], ["choice", "Pick the match", ""], ["speak", "Say it", "Needs a microphone"]] },
+    session: { key: "aliyah.sessionSize", dflt: "20", title: "How much to study in one sitting",
+      opts: [["full", "Full lesson", ""], ["10", "10 words", "Quick"], ["20", "20 words", "Usual"], ["30", "30 words", "Longer"]] },
+    appearance: { key: "aliyah.appearance", dflt: "system", title: "Appearance", help: "Light and dark follow your iPhone unless you choose.",
+      opts: [["system", "Follows iPhone", "Recommended"], ["light", "Light", ""], ["dark", "Dark", ""]] },
+    motion: { key: "aliyah.motion", dflt: "follow", title: "Reduce motion",
+      opts: [["follow", "Follows iPhone", ""], ["reduce", "Reduced", "Less animation"], ["full", "Full", ""]] },
+  };
+  const pickerLabel = (kind) => { const p = PICKERS[kind]; const v = getPref(p.key, p.dflt); const o = p.opts.find((x) => x[0] === v); return o ? o[1] : p.opts[0][1]; };
+  function settingRow(title, meta, act, extra) {
+    return `<button class="row" data-act="${act}"${extra || ""}><span class="row__main"><span class="row__title">${esc(title)}</span>${meta ? `<span class="row__meta">${esc(meta)}</span>` : ""}</span>${icon("chevron", "icon--sm")}</button>`;
+  }
+  function toggleRow(title, meta, on, act) {
+    return `<button class="row" data-act="${act}" aria-pressed="${on}"><span class="row__main"><span class="row__title">${esc(title)}</span>${meta ? `<span class="row__meta">${esc(meta)}</span>` : ""}</span>
+      <span class="toggle" style="pointer-events:none"><input type="checkbox" ${on ? "checked" : ""} tabindex="-1" aria-hidden="true"><span class="track"></span><span class="knob"></span></span></button>`;
+  }
   function renderMe() {
-    const on = exactSetting();
+    const name = esc(user.displayName || "Me");
     mount(`<section class="screen screen--tabbed">
-      <h1 class="t-h1" style="margin-bottom:var(--s-7)">Me</h1>
+      <h1 class="t-h1" style="margin-bottom:var(--s-6)">Me</h1>
+      <div class="hero" style="flex-direction:row;align-items:center;gap:var(--s-6)">
+        <span class="avatar">${name.slice(0, 1)}</span>
+        <span><div class="t-title">${name}</div><div class="t-label" style="opacity:.75">Signed in with Google</div></span>
+      </div>
       <div class="section-label"><span class="t-caps" style="opacity:.75">Study</span></div>
       <div class="list">
-        <button class="row" data-act="toggle-exact" aria-pressed="${on}">
-          <span class="row__main"><span class="row__title">Exact answers</span>
-            <span class="row__meta">Articles, plurals and small typos must be right</span></span>
-          <span class="toggle" style="pointer-events:none"><input type="checkbox" ${on ? "checked" : ""} tabindex="-1" aria-hidden="true"><span class="track"></span><span class="knob"></span></span>
-        </button>
+        ${settingRow("Direction", pickerLabel("direction"), "pick-open", ' data-kind="direction"')}
+        ${settingRow("Answer style", pickerLabel("mode"), "pick-open", ' data-kind="mode"')}
+        ${settingRow("Session length", pickerLabel("session"), "pick-open", ' data-kind="session"')}
+        ${toggleRow("Exact answers", "Articles, plurals and small typos must be right", exactSetting(), "toggle-exact")}
+        ${toggleRow("Pronunciation tips", "After Say-it answers", pronOn(), "toggle-pron")}
       </div>
-      <div class="muted" style="margin-top:var(--s-6)">Each word can override this from its editor. More settings — direction, answer style, session length, your data, account — come in a later phase.</div>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">Look and feel</span></div>
+      <div class="list">
+        ${settingRow("Appearance", pickerLabel("appearance"), "pick-open", ' data-kind="appearance"')}
+        ${settingRow("Reduce motion", pickerLabel("motion"), "pick-open", ' data-kind="motion"')}
+      </div>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">Your data</span></div>
+      <div class="list">
+        ${settingRow("Sync", "All changes saved", "your-data")}
+        ${settingRow("Export my data", "Save everything to a file", "export-data")}
+        ${settingRow("Recently deleted", "Restore lessons within 7 days", "recently-deleted")}
+      </div>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">Account</span></div>
+      <div class="list">
+        <button class="row" data-act="sign-out"><span class="row__main"><span class="row__title">Sign out</span></span>${icon("chevron", "icon--sm")}</button>
+      </div>
+      <div class="muted" style="margin-top:var(--s-6)">People, invites and delete-my-account come with real sign-in (Phase 5).</div>
     </section>${tabbar("me")}`);
   }
-  function toggleExact() { try { localStorage.setItem("aliyah.exact", exactSetting() ? "off" : "on"); } catch {} renderMe(); }
+  function toggleExact() { setPref("aliyah.exact", exactSetting() ? "off" : "on"); renderMe(); }
+  function togglePron() { setPref("aliyah.pronunciation", pronOn() ? "off" : "on"); renderMe(); }
+  function openPicker(kind) {
+    const p = PICKERS[kind]; if (!p) return; const cur = getPref(p.key, p.dflt);
+    const opts = p.opts.map(([val, label, meta]) => `<button class="merge-opt ${val === cur ? "is-sel" : ""}" data-act="pick-set" data-kind="${kind}" data-val="${val}">
+      <span class="merge-opt__radio"></span><span class="merge-opt__main"><span class="row__title">${esc(label)}</span>${meta ? `<span class="row__meta">${esc(meta)}</span>` : ""}</span></button>`).join("");
+    sheet(`<div class="sheet__title">${esc(p.title)}</div>${p.help ? `<div class="sheet__text">${esc(p.help)}</div>` : ""}
+      <div class="merge-list">${opts}</div><button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
+  }
+  function pickSet(kind, val) {
+    const p = PICKERS[kind]; if (!p) return; setPref(p.key, val);
+    if (kind === "appearance") applyTheme();
+    closeSheet(); renderMe();
+  }
+  function renderYourData() {
+    mount(`<section class="screen screen--tabbed">
+      <div class="study-head__row" style="margin-bottom:var(--s-7)">
+        <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
+        <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Your data</span>
+      </div>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">Sync</span></div>
+      <div class="banner"><span>All changes saved</span><span class="t-label" style="color:var(--sheet-muted)">On this device. Sign in to sync across devices (Phase 5).</span></div>
+      <div class="section-label" style="margin-top:var(--s-7)"><span class="t-caps" style="opacity:.75">Export my data</span></div>
+      <div class="muted" style="margin-bottom:var(--s-5)">Download everything you have in the app — lessons, words and progress — as one file. The file is made on your phone. Nothing is sent to anyone.</div>
+      <button class="btn btn--primary" data-act="export-data">Export</button>
+    </section>${tabbar("me")}`);
+  }
+  async function doExport() {
+    const env = await io.exportUser(store, DEMO_ID, now());
+    const blob = new Blob([JSON.stringify(env, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `aliyahs-flashcards-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function signOutDemo() { renderAuth("signin"); }
 
   function renderPlaceholder(tab, title) {
     mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
@@ -1036,7 +1120,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ---- confetti (motion.css drives the keyframes) --------------------------
   function launchConfetti() {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reduceMotion()) return;
     const wrap = document.querySelector(".mark-wrap"); if (!wrap) return;
     const colors = ["var(--confetti-1)", "var(--confetti-2)", "var(--confetti-3)", "var(--confetti-4)"];
     for (let i = 0; i < 10; i++) {
@@ -1118,6 +1202,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "word-undo") undoWordDelete(id, lid);
     else if (act === "word-save") wordSave();
     else if (act === "toggle-exact") toggleExact();
+    else if (act === "toggle-pron") togglePron();
+    else if (act === "pick-open") openPicker(t.dataset.kind);
+    else if (act === "pick-set") pickSet(t.dataset.kind, t.dataset.val);
+    else if (act === "your-data") renderYourData();
+    else if (act === "export-data") doExport();
+    else if (act === "sign-out") signOutDemo();
     // Logged-out screens (PHASE 5: real OAuth + allowlist replaces these)
     else if (act === "auth-continue") authGoTo("notlist");   // demo: every account → not-on-list
     else if (act === "auth-retry") authGoTo("signin");
@@ -1131,6 +1221,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Boot. Real app → Home (demo user). PHASE 5: show Sign-in when logged out,
   // Not-on-list when the allowlist denies. For now both are dev-route only.
   function boot() {
+    applyTheme();   // honor the saved Appearance preference
     const m = /(?:^|[#&])dev=(signin|notlist|notonlist)/.exec(location.hash);
     if (m) { renderAuth(m[1] === "signin" ? "signin" : "notlist"); return; }
     renderHome();
