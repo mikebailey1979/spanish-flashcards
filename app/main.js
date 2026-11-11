@@ -70,9 +70,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   const promptOf = (c, dir) => dir === "es-en" ? c.front : c.back;   // what she sees
   const answerOf = (c, dir) => dir === "es-en" ? c.back : c.front;   // what's correct
+  // Resolve a card's spelling tolerance (Phase 4d): strictMode "follow" defers to
+  // the global Exact setting; "exact"/"forgiving" override it. Accents always ignored.
+  const ALL_STRICT = { article: true, plural: true, typo: true };
+  function exactSetting() { try { return localStorage.getItem("aliyah.exact") === "on"; } catch { return false; } }
+  function effectiveStrict(c) {
+    const mode = c.strictMode || "follow";
+    if (mode === "exact") return Object.assign({}, ALL_STRICT);
+    if (mode === "forgiving") return {};
+    return exactSetting() ? Object.assign({}, ALL_STRICT) : {};
+  }
   // The card the matcher grades against for this direction (es→en uses the card
   // as-is; en→es flips so the Spanish front is the accepted answer).
-  const targetCard = (c, dir) => dir === "es-en" ? c : { back: c.front, accepts: [], strict: c.strict || {} };
+  const targetCard = (c, dir) => {
+    const strict = effectiveStrict(c);
+    return dir === "es-en" ? Object.assign({}, c, { strict }) : { back: c.front, accepts: [], strict };
+  };
   function gradeAnswer(input, c, dir) {
     const target = targetCard(c, dir);
     const res = matcher.isCorrect(input, target);
@@ -300,9 +313,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const pct = lessonReady(l, D), tricky = cards.filter((c) => isTricky(c.id, D)).length;
     const secMap = new Map();
     for (const c of cards) { const k = c.category || "—"; if (!secMap.has(k)) secMap.set(k, []); secMap.get(k).push(c); }
+    const strictLabel = { exact: "Exact", forgiving: "Forgiving" };
     const sections = [...secMap.entries()].map(([name, cs]) => {
       const p = Math.round(cs.filter((c) => isReady(c.id, D)).length / cs.length * 100);
-      return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span></div>`;
+      const rows = cs.map((c) => `<div class="word-row">
+        <span class="word-row__main"><span class="word-row__es">${esc(c.front)}</span><span class="word-row__en">${esc(c.back)}</span></span>
+        ${c.strictMode && c.strictMode !== "follow" ? `<span class="word-row__flag">${esc(strictLabel[c.strictMode] || "")}</span>` : ""}
+        <button class="word-row__edit" data-act="word-edit" data-id="${c.id}" data-lid="${l.id}" aria-label="Edit ${esc(c.front)}">${icon("edit")}</button>
+      </div>`).join("");
+      return `<div class="section-label"><span class="t-caps" style="opacity:.75">${esc(name === "—" ? "Other" : name)}</span><span class="t-label" style="opacity:.7">${p}%</span></div>
+        <div class="word-list">${rows}</div>`;
     }).join("");
     mount(`<section class="screen screen--tabbed">
       <div class="study-head__row" style="margin-bottom:var(--s-7)">
@@ -320,8 +340,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         <span><div class="t-title">${Math.max(0, started - ready)}</div><div class="t-label" style="opacity:.7">practicing</div></span>
         <span><div class="t-title">${cards.length - started}</div><div class="t-label" style="opacity:.7">not started</div></span>
       </div>
-      <div class="section-label"><span class="t-caps" style="opacity:.75">By section</span></div>
-      <div class="list">${sections}</div>
+      <div class="words-head"><span class="t-caps" style="opacity:.75">Words</span>
+        <button class="chip" data-act="word-add" data-id="${l.id}">${icon("add", "icon--sm")} Add a word</button></div>
+      ${sections}
       ${tricky ? `<button class="row" data-act="practice-tricky" style="margin-top:var(--s-5)"><span class="row__main"><span class="row__title">${tricky} tricky words</span><span class="row__meta">Practice them in Tricky words</span></span>${icon("chevron", "icon--sm")}</button>` : ""}
       <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}" style="margin-top:var(--s-7)">Study this lesson</button>
     </section>${tabbar("lessons")}`);
@@ -793,7 +814,138 @@ document.addEventListener("DOMContentLoaded", async () => {
     await store.splitLesson(id, cut, secondName, now());
     await refreshContent(); splitState = null; await renderLessons();
   }
+
+  // ---- word editing (Phase 4d) --------------------------------------------
+  let editWordState = null;
+  function syncWordFields() {
+    if (!editWordState) return;
+    const sp = document.getElementById("ew-es"), en = document.getElementById("ew-en");
+    if (sp) editWordState.front = sp.value;
+    if (en) editWordState.back = en.value;
+  }
+  function lessonCategories(lessonId) {
+    const l = lessons.find((x) => x.id === lessonId); if (!l) return [];
+    const cats = [];
+    for (const cid of l.cardIds) { const c = allCards.find((x) => x.id === cid); const k = c && c.category ? c.category : null; if (k && !cats.includes(k)) cats.push(k); }
+    return cats;
+  }
+  function openEditWord(cardId, lessonId) {
+    const c = allCards.find((x) => x.id === cardId); if (!c) return;
+    editWordState = { mode: "edit", cardId, lessonId, front: c.front, back: c.back, accepts: (c.accepts || []).slice(), strictMode: c.strictMode || "follow", category: c.category || null };
+    renderWordSheet();
+  }
+  function openAddWord(lessonId) {
+    editWordState = { mode: "add", lessonId, front: "", back: "", accepts: [], strictMode: "follow", category: lessonCategories(lessonId)[0] || null };
+    renderWordSheet();
+  }
+  function renderWordSheet() {
+    const W = editWordState, isAdd = W.mode === "add";
+    const l = lessons.find((x) => x.id === W.lessonId);
+    const setLabel = exactSetting() ? "Exact" : "Forgiving";
+    const chips = W.accepts.map((a, i) => `<button class="chip chip--rm" data-act="word-accept-rm" data-i="${i}">${esc(a)} ✕</button>`).join("");
+    const seg = [["follow", "Follow my setting"], ["exact", "Exact"], ["forgiving", "Forgiving"]]
+      .map(([m, lbl]) => `<button data-act="word-strict" data-val="${m}" aria-pressed="${W.strictMode === m}">${lbl}</button>`).join("");
+    sheet(`<div class="sheet__title">${isAdd ? "Add a word" : "Edit word"}</div>
+      ${isAdd ? `<div class="sheet__text">It goes into “${esc(l ? l.name : "")}”.</div>` : ""}
+      <label class="field-label">SPANISH</label>
+      <input id="ew-es" class="field" value="${esc(W.front)}" placeholder="Spanish">
+      <label class="field-label">ENGLISH</label>
+      <input id="ew-en" class="field" value="${esc(W.back)}" placeholder="${isAdd ? "Translation" : "English"}">
+      ${isAdd ? `<div class="sheet__text" style="margin-top:4px">Not sure of the English? Leave it blank for now.</div>` : `
+      <label class="field-label">ALSO ACCEPT</label>
+      <div class="chips">${chips}<span class="chip-add"><input id="ew-acc" class="chip-add__in" placeholder="add" aria-label="Also accept"><button data-act="word-accept-add">+ Add</button></span></div>
+      <label class="field-label">SPELLING FOR THIS WORD</label>
+      <div class="segmented seg3">${seg}</div>
+      <div class="sheet__text">Your setting is ${setLabel}. Exact means articles, plurals and small typos must be right. Accents are always forgiven.</div>
+      <button class="menu__item" data-act="word-section">${icon("lessons")}<span>Section: ${esc(W.category || "None")}</span></button>
+      <button class="menu__item" data-act="word-move">${icon("merge")}<span>Move to another lesson</span></button>
+      <button class="menu__item menu__item--danger" data-act="word-delete">${icon("trash")}<span>Delete word</span></button>`}
+      <button class="btn btn--primary" data-act="word-save">${isAdd ? "Add word" : "Save"}</button>
+      <button class="btn btn--secondary" data-act="close-sheet">Cancel</button>`);
+    const f = document.getElementById("ew-es"); if (f && isAdd) f.focus();
+  }
+  function wordStrict(val) { syncWordFields(); editWordState.strictMode = val; renderWordSheet(); }
+  function wordAcceptAdd() {
+    syncWordFields();
+    const inp = document.getElementById("ew-acc"); const v = inp ? inp.value.trim() : "";
+    if (v && !editWordState.accepts.includes(v)) editWordState.accepts.push(v);
+    renderWordSheet();
+    const f = document.getElementById("ew-acc"); if (f) f.focus();
+  }
+  function wordAcceptRm(i) { syncWordFields(); editWordState.accepts.splice(Number(i), 1); renderWordSheet(); }
+  async function wordSave() {
+    syncWordFields(); const W = editWordState;
+    const front = (W.front || "").trim(); const back = (W.back || "").trim();
+    if (!front) { const f = document.getElementById("ew-es"); if (f) f.focus(); return; }
+    if (W.mode === "add") {
+      const l = lessons.find((x) => x.id === W.lessonId);
+      const deckId = l ? l.deckId : (allCards[0] && allCards[0].deckId);
+      await store.addCard({ ownerId: ctx.contentOwnerId, deckId, front, back, category: W.category, strictMode: W.strictMode }, W.lessonId, now());
+    } else {
+      await store.editCard(W.cardId, { front, back, accepts: W.accepts, category: W.category, strictMode: W.strictMode }, now());
+    }
+    const lid = W.lessonId; editWordState = null; await refreshContent(); closeSheet(); renderLessonDetail(lid);
+  }
+  function openSectionPicker() {
+    syncWordFields();
+    const cats = lessonCategories(editWordState.lessonId);
+    const opts = ["None", ...cats].map((name) => {
+      const val = name === "None" ? "" : name;
+      const sel = (editWordState.category || "") === val;
+      return `<button class="merge-opt ${sel ? "is-sel" : ""}" data-act="word-section-pick" data-val="${esc(val)}"><span class="merge-opt__radio"></span><span class="merge-opt__main"><span class="row__title">${esc(name)}</span></span></button>`;
+    }).join("");
+    sheet(`<div class="sheet__title">Section</div><div class="merge-list">${opts}</div>
+      <button class="btn btn--secondary" data-act="word-back">Back</button>`);
+  }
+  function pickSection(val) { editWordState.category = val || null; renderWordSheet(); }
+  function openWordMove() {
+    syncWordFields();
+    const others = lessons.filter((l) => l.id !== editWordState.lessonId);
+    if (!others.length) return;
+    const opts = others.map((l) => `<button class="merge-opt" data-act="word-move-pick" data-id="${l.id}"><span class="merge-opt__radio"></span><span class="merge-opt__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__meta">${l.cardIds.length} words</span></span></button>`).join("");
+    sheet(`<div class="sheet__title">Move to another lesson</div>
+      <div class="sheet__text">Its progress comes with it.</div>
+      <div class="merge-list">${opts}</div><button class="btn btn--secondary" data-act="word-back">Back</button>`);
+  }
+  async function doWordMove(toLessonId) {
+    const W = editWordState; if (!W || W.mode === "add") return;
+    await store.moveCard(W.cardId, W.lessonId, toLessonId, now());
+    const from = W.lessonId; editWordState = null; await refreshContent(); closeSheet(); renderLessonDetail(from);
+  }
+  async function doWordDelete() {
+    const W = editWordState; if (!W || W.mode === "add") return;
+    const c = allCards.find((x) => x.id === W.cardId); const name = c ? c.front : "Word";
+    const cardId = W.cardId, lid = W.lessonId;
+    await store.deleteCard(cardId, lid, now());
+    editWordState = null; await refreshContent(); closeSheet(); await renderLessonDetail(lid);
+    app.querySelectorAll(".toast").forEach((n) => n.remove());
+    app.insertAdjacentHTML("beforeend",
+      `<div class="toast"><span>${esc(name)} deleted</span><button class="link" data-act="word-undo" data-id="${cardId}" data-lid="${lid}">Undo</button></div>`);
+    const tst = app.querySelector(".toast"); setTimeout(() => { if (tst && tst.isConnected) tst.remove(); }, 6000);
+  }
+  async function undoWordDelete(cardId, lid) {
+    await store.restoreCard(cardId, lid, now()); await refreshContent();
+    app.querySelectorAll(".toast").forEach((n) => n.remove()); renderLessonDetail(lid);
+  }
   async function startTricky() { startWith(trickyCards(await loadData())); }
+  // Me (Phase 4d: the global Exact toggle; the rest of Me is Phase 5).
+  function renderMe() {
+    const on = exactSetting();
+    mount(`<section class="screen screen--tabbed">
+      <h1 class="t-h1" style="margin-bottom:var(--s-7)">Me</h1>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">Study</span></div>
+      <div class="list">
+        <button class="row" data-act="toggle-exact" aria-pressed="${on}">
+          <span class="row__main"><span class="row__title">Exact answers</span>
+            <span class="row__meta">Articles, plurals and small typos must be right</span></span>
+          <span class="toggle" style="pointer-events:none"><input type="checkbox" ${on ? "checked" : ""} tabindex="-1" aria-hidden="true"><span class="track"></span><span class="knob"></span></span>
+        </button>
+      </div>
+      <div class="muted" style="margin-top:var(--s-6)">Each word can override this from its editor. More settings — direction, answer style, session length, your data, account — come in a later phase.</div>
+    </section>${tabbar("me")}`);
+  }
+  function toggleExact() { try { localStorage.setItem("aliyah.exact", exactSetting() ? "off" : "on"); } catch {} renderMe(); }
+
   function renderPlaceholder(tab, title) {
     mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
       <div class="placeholder">${icon(tab === "me" ? "me" : "add")}<div class="t-title">Coming in a later phase</div>
@@ -903,13 +1055,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   app.addEventListener("click", (e) => {
     const t = e.target.closest("[data-act]"); if (!t) return;
-    const act = t.dataset.act, id = t.dataset.id;
+    const act = t.dataset.act, id = t.dataset.id, lid = t.dataset.lid;
     if (act === "tab") {
       const tab = t.dataset.tab;
       if (tab === "home") renderHome();
       else if (tab === "lessons") renderLessons();
       else if (tab === "progress") renderProgress();
-      else if (tab === "me") renderPlaceholder("me", "Me");
+      else if (tab === "me") renderMe();
       else if (tab === "add") renderPlaceholder("add", "Add homework");
     }
     else if (act === "home") renderHome();
@@ -951,6 +1103,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "lesson-split") renderSplit(id);
     else if (act === "split-at") splitAt(t.dataset.i);
     else if (act === "split-confirm") doSplit(id);
+    // word editing (Phase 4d)
+    else if (act === "word-edit") openEditWord(id, lid);
+    else if (act === "word-add") openAddWord(id);
+    else if (act === "word-strict") wordStrict(t.dataset.val);
+    else if (act === "word-accept-add") wordAcceptAdd();
+    else if (act === "word-accept-rm") wordAcceptRm(t.dataset.i);
+    else if (act === "word-section") openSectionPicker();
+    else if (act === "word-section-pick") pickSection(t.dataset.val);
+    else if (act === "word-move") openWordMove();
+    else if (act === "word-move-pick") doWordMove(id);
+    else if (act === "word-back") renderWordSheet();
+    else if (act === "word-delete") doWordDelete();
+    else if (act === "word-undo") undoWordDelete(id, lid);
+    else if (act === "word-save") wordSave();
+    else if (act === "toggle-exact") toggleExact();
     // Logged-out screens (PHASE 5: real OAuth + allowlist replaces these)
     else if (act === "auth-continue") authGoTo("notlist");   // demo: every account → not-on-list
     else if (act === "auth-retry") authGoTo("signin");

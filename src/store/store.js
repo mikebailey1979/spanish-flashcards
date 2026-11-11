@@ -281,6 +281,15 @@
       return c;
     }
 
+    /** Un-tombstone a single card and re-add it to a lesson (word-delete undo). */
+    async function restoreCard(cardId, lessonId, now) {
+      const c = await get("cards", cardId); if (!c) return null;
+      c.deletedAt = null; model.markUpdated(c, now); await putCard(c);
+      const l = await getLesson(lessonId);
+      if (l && !l.cardIds.includes(cardId)) { l.cardIds.push(cardId); model.markUpdated(l, now); await putLesson(l); }
+      return c;
+    }
+
     /** Hard-delete tombstoned lessons + cards older than ttlDays (the real 7-day purge). */
     async function purgeExpired(ownerId, now, ttlDays = 7) {
       const cutoff = now - ttlDays * 86400000;
@@ -306,7 +315,7 @@
       // content management (Phase 4)
       renameLesson, deleteLesson, restoreLesson, listDeletedLessons,
       mergeLessons, splitLesson, moveCard,
-      editCard, addCard, deleteCard, purgeExpired,
+      editCard, addCard, deleteCard, restoreCard, purgeExpired,
       // study
       studyContext, getProgress, review, selectDue,
     };

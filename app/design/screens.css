@@ -116,3 +116,35 @@
   border-top: 2px dashed var(--track); }
 .split-div .icon { color: var(--on-ground); }
 .screen .list .row[disabled] { opacity: .6; }
+
+/* ---- Word editing (Phase 4d) -------------------------------------------- */
+.words-head { display: flex; align-items: center; justify-content: space-between;
+  margin: var(--s-6) 0 var(--s-3); }
+.words-head .chip { cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+  background: #fff; color: var(--btn-text); }
+.word-list { display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-4); }
+.word-row { display: flex; align-items: center; gap: var(--s-4);
+  background: var(--surface-1); border-radius: var(--r-field); padding: var(--s-4) var(--s-5); }
+.word-row__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.word-row__es { font-weight: 700; }
+.word-row__en { font-size: 13px; opacity: .78; }
+.word-row__flag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--on-ground); background: var(--surface-2); border-radius: var(--r-pill); padding: 2px 8px; }
+.word-row__edit { border: 0; background: none; cursor: pointer; color: var(--on-ground); opacity: .8;
+  width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+.word-row__edit .icon { width: 20px; height: 20px; }
+
+/* Sheet form bits */
+.field-label { display: block; font-size: var(--t-caps); font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--sheet-muted); margin: var(--s-4) 0 var(--s-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips .chip--rm { background: var(--sheet-field); color: var(--sheet-ink); border: 0; cursor: pointer;
+  display: inline-flex; align-items: center; height: 30px; padding: 0 var(--s-5); border-radius: var(--r-pill);
+  font-size: 13px; font-weight: 600; }
+.chip-add { display: inline-flex; align-items: center; gap: 4px; }
+.chip-add__in { height: 30px; width: 90px; border: 1px solid var(--sheet-line); border-radius: var(--r-pill);
+  padding: 0 var(--s-4); background: #fff; color: var(--sheet-ink); font: inherit; font-size: 13px; }
+.chip-add button { height: 30px; border: 0; background: var(--sheet-field); color: var(--btn-text);
+  border-radius: var(--r-pill); padding: 0 var(--s-5); font-weight: 700; cursor: pointer; font-size: 13px; }
+.segmented.seg3 { display: flex; width: 100%; }
+.segmented.seg3 button { flex: 1; font-size: 13px; padding: 10px 6px; }

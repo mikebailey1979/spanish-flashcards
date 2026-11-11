@@ -128,6 +128,19 @@ test("addCard appends to the lesson; deleteCard tombstones + drops it", async ()
   assert.equal((await store.listCards(aliyah.id)).length, 3);
 });
 
+test("deleteCard then restoreCard brings the word back into its lesson with progress", async () => {
+  const { store, aliyah, lesson, c2 } = await fixture();
+  const ctx = store.studyContext(aliyah);
+  await store.review(ctx, c2, "good", "type", T0);
+  await store.deleteCard(c2.id, lesson.id, T0 + 5);
+  assert.ok(!(await store.getLesson(lesson.id)).cardIds.includes(c2.id));
+  assert.equal(await store.getCard(c2.id), null);
+  await store.restoreCard(c2.id, lesson.id, T0 + 10);
+  assert.ok((await store.getLesson(lesson.id)).cardIds.includes(c2.id));
+  assert.ok(await store.getCard(c2.id), "card live again");
+  assert.ok(await store.getProgress(aliyah.id, c2.id), "progress kept");
+});
+
 test("purgeExpired hard-deletes tombstoned records older than the TTL, keeps fresh ones", async () => {
   const { store, aliyah, lesson } = await fixture();
   await store.deleteLesson(lesson.id, T0);                 // deleted at T0
