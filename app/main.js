@@ -27,17 +27,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     await store.putUser(user);
   }
   await seedUser(store, DEMO_ID, now());
-  const ctx = store.studyContext(user);
-  let lessons = await store.listLessons(DEMO_ID);
+  let ctx = store.studyContext(user);                         // swapped during emulation (Phase 5d)
+  let emu = null;                                             // {targetId, name, countOwn} while Viewing as
+  let lessons = await store.listLessons(ctx.contentOwnerId);
 
   // card.id -> lesson, for grouping due counts
   const cardLesson = {};
   for (const l of lessons) for (const id of l.cardIds) cardLesson[id] = l;
   let allCards = await store.listCards(ctx.contentOwnerId);   // for MC distractors
 
-  // Rebuild the content caches after any lesson/card edit (Phase 4).
+  // Rebuild the content caches after any lesson/card edit, or an emulation switch.
   async function refreshContent() {
-    lessons = await store.listLessons(DEMO_ID);
+    lessons = await store.listLessons(ctx.contentOwnerId);
     for (const k in cardLesson) delete cardLesson[k];
     for (const l of lessons) for (const id of l.cardIds) cardLesson[id] = l;
     allCards = await store.listCards(ctx.contentOwnerId);
@@ -262,7 +263,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${tricky ? `<span class="pill">${tricky}</span>` : ""}</button>`;
     const list = lessons.map((l) => lessonRow(l, byLesson[l.id] || 0)).join("");
     mount(`<section class="screen screen--tabbed">
-      <div class="home__head"><h1 class="t-h1">${esc(user.displayName)}</h1>
+      <div class="home__head"><h1 class="t-h1">${esc(emu ? emu.name : user.displayName)}</h1>
         ${st ? `<span class="streak-pill">${icon("flame")}${st}-day streak</span>` : ""}</div>
       ${hero}
       ${trickyRow}
@@ -986,6 +987,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         ${settingRow("Export my data", "Save everything to a file", "export-data")}
         ${settingRow("Recently deleted", "Restore lessons within 7 days", "recently-deleted")}
       </div>
+      ${user.role === "admin" ? `<div class="section-label"><span class="t-caps" style="opacity:.75">People</span></div>
+      <div class="list">${settingRow("People with access", "Invite, roles, study as", "people")}</div>` : ""}
       <div class="section-label"><span class="t-caps" style="opacity:.75">Account</span></div>
       <div class="list">
         <button class="row" data-act="sign-out"><span class="row__main"><span class="row__title">Sign out</span></span>${icon("chevron", "icon--sm")}</button>
@@ -1097,6 +1100,77 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function dismissInstall() { try { localStorage.setItem("aliyah.installSeen", "1"); } catch {} app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove()); }
 
+  // ---- People with access + emulation (Phase 5d) --------------------------
+  //  Admin-only. Invite writes a local user record here; the real DB allowlist
+  //  write goes through auth RPCs once the backend is live. Emulation uses the
+  //  engine's non-persisting preview (or a separate admin@as track if opted in).
+  async function renderPeople() {
+    const users = await store.listUsers();
+    const learners = users.filter((u) => u.role !== "admin");
+    const admins = users.filter((u) => u.role === "admin");
+    const row = (u, isLearner) => `<div class="row" style="cursor:default">
+      <span class="avatar" style="width:40px;height:40px;font-size:17px">${esc((u.displayName || u.email || "?").slice(0, 1).toUpperCase())}</span>
+      <span class="row__main" style="margin-left:var(--s-4)"><span class="row__title" style="-webkit-line-clamp:1">${esc(u.displayName || u.email)}</span><span class="row__meta">${u.role === "admin" ? "Admin" : "Learner"}</span></span>
+      ${isLearner && u.id !== user.id ? `<button class="chip" style="background:#fff;color:var(--btn-text)" data-act="study-as" data-id="${u.id}">Study as</button>` : ""}</div>`;
+    mount(`<section class="screen screen--tabbed">
+      <div class="study-head__row" style="margin-bottom:var(--s-6)">
+        <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
+        <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">People with access</span>
+      </div>
+      ${learners.length ? `<div class="section-label"><span class="t-caps" style="opacity:.75">Learners</span></div><div class="list">${learners.map((u) => row(u, true)).join("")}</div>` : ""}
+      ${admins.length ? `<div class="section-label"><span class="t-caps" style="opacity:.75">Admins</span></div><div class="list">${admins.map((u) => row(u, false)).join("")}</div>` : ""}
+      <button class="btn btn--primary" data-act="invite-open" style="margin-top:var(--s-7)">Invite someone</button>
+      <div class="muted" style="margin-top:var(--s-5)">Friends are fully separate users — their lessons and progress stay private.</div>
+    </section>${tabbar("me")}`);
+  }
+  let inviteRole = "user";
+  function openInvite() { inviteRole = "user"; renderInviteSheet(); }
+  function renderInviteSheet() {
+    sheet(`<div class="sheet__title">Invite someone</div>
+      <div class="sheet__text">They sign in with the Google account you enter. Only invited accounts can get in.</div>
+      <label class="field-label">Google email</label>
+      <input id="invite-email" class="field" placeholder="name@gmail.com" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <label class="field-label">Role</label>
+      <div class="segmented seg3" style="width:100%">
+        <button data-act="invite-role" data-val="user" aria-pressed="${inviteRole === "user"}">Learner</button>
+        <button data-act="invite-role" data-val="admin" aria-pressed="${inviteRole === "admin"}">Admin</button>
+      </div>
+      <button class="btn btn--primary" data-act="invite-send">Send invite</button>
+      <button class="btn btn--secondary" data-act="close-sheet">Cancel</button>`);
+  }
+  function inviteRoleSet(v) { const em = document.getElementById("invite-email"); const val = em ? em.value : ""; inviteRole = v; renderInviteSheet(); const e2 = document.getElementById("invite-email"); if (e2) e2.value = val; }
+  async function doInvite() {
+    const em = document.getElementById("invite-email"); const email = (em ? em.value : "").trim();
+    if (!email) { if (em) em.focus(); return; }
+    const u = model.createUser({ email, displayName: email.split("@")[0], role: inviteRole }, now());
+    await store.putUser(u);
+    closeSheet(); renderPeople();
+  }
+  async function studyAs(targetId) {
+    const target = await store.getUser(targetId); if (!target) return;
+    emu = { targetId, name: target.displayName || target.email || "Learner", countOwn: false };
+    ctx = store.studyContext(user, { actingAsUserId: targetId, countEmulatedProgress: false });
+    await refreshContent(); renderHome();
+  }
+  async function exitEmulation() {
+    emu = null; ctx = store.studyContext(user); await refreshContent(); renderMe();
+  }
+  function openEmuOptions() {
+    if (!emu) return;
+    sheet(`<div class="sheet__title">Viewing as ${esc(emu.name)}</div>
+      <div class="sheet__text">You are looking at ${esc(emu.name)}'s account. Nothing you do here changes ${esc(emu.name)}'s progress.</div>
+      <button class="row" data-act="emu-count" aria-pressed="${emu.countOwn}" style="background:var(--sheet-field);color:var(--sheet-ink)">
+        <span class="row__main"><span class="row__title">Count my own practice</span><span class="row__meta" style="color:var(--sheet-muted)">Saved to a separate track for you, never to ${esc(emu.name)}</span></span>
+        <span class="toggle" style="pointer-events:none"><input type="checkbox" ${emu.countOwn ? "checked" : ""} tabindex="-1" aria-hidden="true"><span class="track"></span><span class="knob"></span></span></button>
+      <button class="btn btn--primary" data-act="close-sheet">Keep viewing</button>
+      <button class="btn btn--secondary" data-act="emu-exit">Stop viewing as ${esc(emu.name)}</button>`);
+  }
+  async function toggleCountOwn() {
+    if (!emu) return; emu.countOwn = !emu.countOwn;
+    ctx = store.studyContext(user, { actingAsUserId: emu.targetId, countEmulatedProgress: emu.countOwn });
+    openEmuOptions();
+  }
+
   function renderPlaceholder(tab, title) {
     mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
       <div class="placeholder">${icon(tab === "me" ? "me" : "add")}<div class="t-title">Coming in a later phase</div>
@@ -1202,7 +1276,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ---- render + events -----------------------------------------------------
-  function mount(html) { app.innerHTML = html; window.scrollTo(0, 0); }
+  function mount(html) {
+    app.innerHTML = html; window.scrollTo(0, 0);
+    app.classList.toggle("emulating", !!emu);
+    if (emu) app.insertAdjacentHTML("afterbegin",
+      `<div class="emu-bar">${icon("eye")}<span class="emu-bar__txt"><b>Viewing as ${esc(emu.name)}</b><span>Nothing you do here is saved</span></span>
+        <button class="emu-bar__btn" data-act="emu-options">Options</button>
+        <button class="emu-bar__btn emu-bar__btn--x" data-act="emu-exit">Exit</button></div>`);
+  }
 
   app.addEventListener("click", (e) => {
     const t = e.target.closest("[data-act]"); if (!t) return;
@@ -1279,6 +1360,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "delete-confirm") doDeleteAccount();
     else if (act === "account-restore") restoreAccount();
     else if (act === "install-dismiss") dismissInstall();
+    // People + emulation (Phase 5d)
+    else if (act === "people") renderPeople();
+    else if (act === "invite-open") openInvite();
+    else if (act === "invite-role") inviteRoleSet(t.dataset.val);
+    else if (act === "invite-send") doInvite();
+    else if (act === "study-as") studyAs(id);
+    else if (act === "emu-options") openEmuOptions();
+    else if (act === "emu-exit") exitEmulation();
+    else if (act === "emu-count") toggleCountOwn();
     // Logged-out screens
     else if (act === "auth-continue") signInGoogle();
     else if (act === "auth-retry") authGate();
