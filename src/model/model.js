@@ -80,8 +80,11 @@
    *   back: string,
    *   accepts: string[],
    *   strict: StrictFlags,
+   *   strictMode: "follow"|"exact"|"forgiving",
    *   category: string|null
    * }} Card  category = the bilingual sub-heading/section within a lesson (or null)
+   *   strictMode: how this card resolves spelling tolerance — "follow" the global Exact
+   *   setting (default), always "exact", or always "forgiving".
    */
 
   /**
@@ -185,7 +188,7 @@
   }
 
   /**
-   * @param {{ownerId: string, deckId: string, front: string, back: string, accepts?: string[], strict?: StrictFlags, category?: string|null}} input
+   * @param {{ownerId: string, deckId: string, front: string, back: string, accepts?: string[], strict?: StrictFlags, strictMode?: "follow"|"exact"|"forgiving", category?: string|null}} input
    * @param {number} [now]
    * @returns {Card}
    */
@@ -197,6 +200,7 @@
       back: input.back,
       accepts: input.accepts ? input.accepts.slice() : [],
       strict: input.strict ? Object.assign({}, input.strict) : {},
+      strictMode: input.strictMode || "follow",
       category: input.category == null ? null : String(input.category),
     });
   }

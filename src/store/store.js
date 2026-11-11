@@ -177,6 +177,124 @@
       return scheduler.selectDue(items, now, limit);
     }
 
+    // ---- content management (Phase 4) -----------------------------------
+    //  Lesson rename/merge/split/delete + restore, and card edit/add/move/delete.
+    //  Deleting tombstones (deletedAt) so sync + 7-day undo work; per-word PROGRESS
+    //  is keyed by cardId and never touched, so it survives move/merge/split/restore.
+    const getLesson = async (id) => { const l = await get("lessons", id); return live(l) ? l : null; };
+    const getCard = async (id) => { const c = await get("cards", id); return live(c) ? c : null; };
+
+    async function renameLesson(id, name, now) {
+      const l = await getLesson(id); if (!l) throw new Error("lesson not found: " + id);
+      l.name = String(name); model.markUpdated(l, now); await putLesson(l); return l;
+    }
+
+    /** Tombstone a lesson and its member cards (progress kept). 7-day undo via restoreLesson. */
+    async function deleteLesson(id, now) {
+      const l = await getLesson(id); if (!l) throw new Error("lesson not found: " + id);
+      for (const cid of l.cardIds) {
+        const c = await get("cards", cid);
+        if (live(c)) { model.softDelete(c, now); await putCard(c); }
+      }
+      model.softDelete(l, now); await putLesson(l); return l;
+    }
+
+    /** Un-tombstone a lesson and the cards it still references. */
+    async function restoreLesson(id, now) {
+      const l = await get("lessons", id); if (!l) throw new Error("lesson not found: " + id);
+      l.deletedAt = null; model.markUpdated(l, now); await putLesson(l);
+      for (const cid of l.cardIds) {
+        const c = await get("cards", cid);
+        if (c && c.deletedAt != null) { c.deletedAt = null; model.markUpdated(c, now); await putCard(c); }
+      }
+      return l;
+    }
+
+    /** Tombstoned lessons for an owner, newest-deleted first (Recently deleted). */
+    async function listDeletedLessons(ownerId) {
+      return (await all("lessons"))
+        .filter((l) => l.ownerId === ownerId && l.deletedAt != null)
+        .sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
+    }
+
+    /** Append source's cards into target, then tombstone the source lesson (cards kept). */
+    async function mergeLessons(targetId, sourceId, now) {
+      const t = await getLesson(targetId), s = await getLesson(sourceId);
+      if (!t || !s) throw new Error("lesson not found");
+      const have = new Set(t.cardIds);
+      for (const cid of s.cardIds) if (!have.has(cid)) t.cardIds.push(cid);
+      model.markUpdated(t, now); await putLesson(t);
+      model.softDelete(s, now); await putLesson(s);
+      return t;
+    }
+
+    /** Move cards at [atIndex..] into a new second lesson; keep the rest in the first. */
+    async function splitLesson(id, atIndex, secondName, now) {
+      const l = await getLesson(id); if (!l) throw new Error("lesson not found: " + id);
+      if (!(atIndex > 0 && atIndex < l.cardIds.length)) throw new Error("split index out of range: " + atIndex);
+      const moved = l.cardIds.slice(atIndex);
+      const second = model.createLesson(
+        { ownerId: l.ownerId, deckId: l.deckId, name: secondName, source: l.source, cardIds: moved }, now);
+      l.cardIds = l.cardIds.slice(0, atIndex);
+      model.markUpdated(l, now);
+      await putLesson(second); await putLesson(l);
+      return { first: l, second };
+    }
+
+    /** Move one card between lessons (membership only; progress unaffected). */
+    async function moveCard(cardId, fromLessonId, toLessonId, now) {
+      const from = await getLesson(fromLessonId), to = await getLesson(toLessonId);
+      if (!from || !to) throw new Error("lesson not found");
+      from.cardIds = from.cardIds.filter((x) => x !== cardId);
+      if (!to.cardIds.includes(cardId)) to.cardIds.push(cardId);
+      model.markUpdated(from, now); model.markUpdated(to, now);
+      await putLesson(from); await putLesson(to);
+      return { from, to };
+    }
+
+    /** Patch a card: front/back/accepts/category/strictMode. */
+    async function editCard(cardId, patch, now) {
+      const c = await getCard(cardId); if (!c) throw new Error("card not found: " + cardId);
+      if (patch.front != null) c.front = String(patch.front);
+      if (patch.back != null) c.back = String(patch.back);
+      if (patch.accepts) c.accepts = patch.accepts.slice();
+      if ("category" in patch) c.category = patch.category == null ? null : String(patch.category);
+      if (patch.strictMode) c.strictMode = patch.strictMode;
+      model.markUpdated(c, now); await putCard(c); return c;
+    }
+
+    /** Create a card and append it to a lesson. */
+    async function addCard(input, lessonId, now) {
+      const l = await getLesson(lessonId); if (!l) throw new Error("lesson not found: " + lessonId);
+      const card = model.createCard(input, now);
+      await putCard(card);
+      l.cardIds.push(card.id); model.markUpdated(l, now); await putLesson(l);
+      return card;
+    }
+
+    /** Tombstone a card and drop it from its lesson. */
+    async function deleteCard(cardId, lessonId, now) {
+      const c = await getCard(cardId); if (!c) throw new Error("card not found: " + cardId);
+      model.softDelete(c, now); await putCard(c);
+      const l = await getLesson(lessonId);
+      if (l) { l.cardIds = l.cardIds.filter((x) => x !== cardId); model.markUpdated(l, now); await putLesson(l); }
+      return c;
+    }
+
+    /** Hard-delete tombstoned lessons + cards older than ttlDays (the real 7-day purge). */
+    async function purgeExpired(ownerId, now, ttlDays = 7) {
+      const cutoff = now - ttlDays * 86400000;
+      let purged = 0;
+      for (const coll of ["lessons", "cards"]) {
+        for (const rec of await all(coll)) {
+          if (rec.ownerId === ownerId && rec.deletedAt != null && Date.parse(rec.deletedAt) < cutoff) {
+            await adapter.remove(coll, rec.id); purged++;
+          }
+        }
+      }
+      return purged;
+    }
+
     return {
       COLLECTIONS,
       adapter,
@@ -184,6 +302,11 @@
       putUser, getUser, listUsers,
       // content
       putDeck, putLesson, putCard, listDecks, listLessons, listCards, cardsByIds,
+      getLesson, getCard,
+      // content management (Phase 4)
+      renameLesson, deleteLesson, restoreLesson, listDeletedLessons,
+      mergeLessons, splitLesson, moveCard,
+      editCard, addCard, deleteCard, purgeExpired,
       // study
       studyContext, getProgress, review, selectDue,
     };
