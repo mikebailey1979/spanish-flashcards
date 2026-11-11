@@ -92,3 +92,27 @@
 .menu__item--danger { color: var(--destructive); }
 .menu__item--danger .icon { color: var(--destructive); }
 .menu__item:disabled { opacity: .4; cursor: default; }
+
+/* ---- Merge sheet + Split screen (Phase 4c) ------------------------------- */
+.merge-list { display: flex; flex-direction: column; gap: var(--s-3); max-height: 46vh; overflow: auto; }
+.merge-opt {
+  display: flex; align-items: center; gap: var(--s-5);
+  width: 100%; padding: var(--s-5) var(--s-6); border: 0; cursor: pointer; text-align: left;
+  background: var(--sheet-field); border-radius: var(--r-field); color: var(--sheet-ink);
+  box-shadow: inset 0 0 0 1px var(--sheet-line);
+}
+.merge-opt.is-sel { box-shadow: inset 0 0 0 2px var(--btn-text); }
+.merge-opt__radio { width: 22px; height: 22px; flex: none; border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--sheet-line); position: relative; }
+.merge-opt.is-sel .merge-opt__radio { box-shadow: inset 0 0 0 2px var(--btn-text); }
+.merge-opt.is-sel .merge-opt__radio::after { content: ""; position: absolute; inset: 5px;
+  border-radius: 50%; background: var(--btn-text); }
+.merge-opt__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.merge-opt .row__meta { color: var(--sheet-muted); }
+
+.split-div { display: flex; align-items: center; gap: 8px; justify-content: center;
+  color: var(--on-ground); font-weight: 700; font-size: var(--t-label);
+  padding: var(--s-4) 0; margin: var(--s-2) 0;
+  border-top: 2px dashed var(--track); }
+.split-div .icon { color: var(--on-ground); }
+.screen .list .row[disabled] { opacity: .6; }

@@ -627,10 +627,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function openLessonMenu(id) {
     const l = lessons.find((x) => x.id === id); if (!l) return;
-    // Merge/Split added in Phase 4c; Rename/Delete live now.
+    const catOf = new Map(allCards.map((c) => [c.id, c.category || "—"]));
+    const canMerge = lessons.length > 1;                                  // need another lesson
+    const canSplit = new Set(l.cardIds.map((cid) => catOf.get(cid) || "—")).size >= 2;  // need a boundary
     sheet(`<div class="sheet__title" style="margin-bottom:var(--s-4)">${esc(l.name)}</div>
       <div class="menu">
         <button class="menu__item" data-act="lesson-rename" data-id="${id}">${icon("edit")}<span>Rename</span></button>
+        <button class="menu__item" data-act="lesson-merge" data-id="${id}" ${canMerge ? "" : "disabled"}>${icon("merge")}<span>Merge with another lesson</span></button>
+        <button class="menu__item" data-act="lesson-split" data-id="${id}" ${canSplit ? "" : "disabled"}>${icon("split")}<span>Split into two lessons</span></button>
         <button class="menu__item menu__item--danger" data-act="lesson-delete" data-id="${id}">${icon("trash")}<span>Delete lesson</span></button>
       </div>`);
   }
@@ -696,6 +700,99 @@ document.addEventListener("DOMContentLoaded", async () => {
     </section>${tabbar("lessons")}`);
   }
   async function restoreFromList(id) { await store.restoreLesson(id, now()); await refreshContent(); renderRecentlyDeleted(); }
+
+  // ---- merge + split (Phase 4c) -------------------------------------------
+  let mergeState = null;
+  function openMerge(id) {
+    const target = lessons.find((x) => x.id === id); if (!target) return;
+    const others = lessons.filter((l) => l.id !== id);
+    if (!others.length) return;
+    mergeState = { targetId: id, sourceId: others[0].id };
+    renderMergeSheet();
+  }
+  function renderMergeSheet() {
+    const target = lessons.find((x) => x.id === mergeState.targetId);
+    const others = lessons.filter((l) => l.id !== mergeState.targetId);
+    const src = lessons.find((x) => x.id === mergeState.sourceId);
+    const total = target.cardIds.length + (src ? src.cardIds.length : 0);
+    const opts = others.map((l) => `<button class="merge-opt ${l.id === mergeState.sourceId ? "is-sel" : ""}" data-act="merge-pick" data-id="${l.id}">
+        <span class="merge-opt__radio"></span>
+        <span class="merge-opt__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__meta">${l.cardIds.length} words</span></span></button>`).join("");
+    sheet(`<div class="sheet__title">Merge with…</div>
+      <div class="sheet__text">Pick the lesson to combine with “${esc(target.name)}”.</div>
+      <div class="merge-list">${opts}</div>
+      <div class="banner" style="margin-top:var(--s-3)"><span class="t-caps">You will get</span>
+        <span>One lesson called “${esc(target.name)}” with ${total} words. Progress on every word is kept.</span></div>
+      <button class="btn btn--primary" data-act="merge-confirm">Merge lessons</button>
+      <button class="btn btn--secondary" data-act="close-sheet">Cancel</button>`);
+  }
+  function mergePick(id) { if (mergeState) { mergeState.sourceId = id; renderMergeSheet(); } }
+  async function doMerge() {
+    if (!mergeState || !mergeState.sourceId) return;
+    const targetId = mergeState.targetId;
+    await store.mergeLessons(targetId, mergeState.sourceId, now());
+    await refreshContent(); mergeState = null; closeSheet(); renderLessonDetail(targetId);
+  }
+
+  // Contiguous category runs, in lesson order. @returns {{name,start,count}[]}
+  function sectionRuns(ordered) {
+    const runs = [];
+    ordered.forEach((c, i) => {
+      const name = c.category || "Words";
+      if (!runs.length || runs[runs.length - 1].name !== name) runs.push({ name, start: i, count: 1 });
+      else runs[runs.length - 1].count++;
+    });
+    return runs;
+  }
+  async function orderedCards(l) {
+    const cards = await store.cardsByIds(l.cardIds, ctx.contentOwnerId);
+    const byId = new Map(cards.map((c) => [c.id, c]));
+    return l.cardIds.map((cid) => byId.get(cid)).filter(Boolean);
+  }
+  let splitState = null;
+  async function renderSplit(id) {
+    const l = lessons.find((x) => x.id === id); if (!l) return renderLessonDetail(id);
+    const ordered = await orderedCards(l);
+    const runs = sectionRuns(ordered);
+    if (runs.length < 2) return renderLessonDetail(id);   // no boundary to tap
+    if (!splitState || splitState.id !== id) splitState = { id, cutRun: 1 };
+    if (splitState.cutRun < 1 || splitState.cutRun >= runs.length) splitState.cutRun = 1;
+    const cut = runs[splitState.cutRun].start;
+    const firstN = cut, secondN = ordered.length - cut;
+    const rows = runs.map((r, idx) => {
+      const divider = idx === splitState.cutRun ? `<div class="split-div">${icon("split", "icon--sm")} Second lesson starts here</div>` : "";
+      const disabled = idx === 0 ? "disabled" : "";   // part 2 can't start at the very top
+      return `${divider}<button class="row" data-act="split-at" data-i="${idx}" ${disabled}>
+        <span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(r.name)}</span>
+          <span class="row__meta">${r.count} word${r.count === 1 ? "" : "s"}</span></span></button>`;
+    }).join("");
+    mount(`<section class="screen">
+      <div class="study-head__row" style="margin-bottom:var(--s-5)">
+        <button class="study-head__exit" data-act="open-lesson" data-id="${id}">${icon("back")}</button>
+        <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Split lesson</span>
+      </div>
+      <div class="muted" style="margin-bottom:var(--s-5)">Tap a section to start the second lesson there.</div>
+      <div class="list">${rows}</div>
+      <div style="display:flex;gap:var(--s-4);margin-top:var(--s-6)">
+        <div class="hero" style="flex:1;padding:var(--s-6);gap:4px"><div class="t-title">${firstN}</div><div class="t-label" style="opacity:.75">words in the first lesson</div></div>
+        <div class="hero" style="flex:1;padding:var(--s-6);gap:4px"><div class="t-title">${secondN}</div><div class="t-label" style="opacity:.75">words in the second lesson</div></div>
+      </div>
+      <button class="btn btn--primary" data-act="split-confirm" data-id="${id}" style="margin-top:var(--s-7)">Split lesson</button>
+      <button class="btn btn--secondary" data-act="open-lesson" data-id="${id}">Cancel</button>
+    </section>`);
+  }
+  function splitAt(i) { if (splitState) { splitState.cutRun = Number(i); renderSplit(splitState.id); } }
+  async function doSplit(id) {
+    const l = lessons.find((x) => x.id === id); if (!l) return;
+    const ordered = await orderedCards(l);
+    const runs = sectionRuns(ordered);
+    if (runs.length < 2) return renderLessonDetail(id);
+    const run = runs[splitState.cutRun] || runs[1];
+    const cut = run.start;
+    const secondName = run.name && run.name !== "Words" ? run.name : l.name + " (2)";
+    await store.splitLesson(id, cut, secondName, now());
+    await refreshContent(); splitState = null; await renderLessons();
+  }
   async function startTricky() { startWith(trickyCards(await loadData())); }
   function renderPlaceholder(tab, title) {
     mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
@@ -847,6 +944,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "recently-deleted") renderRecentlyDeleted();
     else if (act === "lesson-restore") restoreFromList(id);
     else if (act === "close-sheet") closeSheet();
+    // merge + split (Phase 4c)
+    else if (act === "lesson-merge") openMerge(id);
+    else if (act === "merge-pick") mergePick(id);
+    else if (act === "merge-confirm") doMerge();
+    else if (act === "lesson-split") renderSplit(id);
+    else if (act === "split-at") splitAt(t.dataset.i);
+    else if (act === "split-confirm") doSplit(id);
     // Logged-out screens (PHASE 5: real OAuth + allowlist replaces these)
     else if (act === "auth-continue") authGoTo("notlist");   // demo: every account → not-on-list
     else if (act === "auth-retry") authGoTo("signin");
