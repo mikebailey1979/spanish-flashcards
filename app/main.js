@@ -269,6 +269,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="section-label"><span class="t-caps" style="opacity:.75">Your lessons</span></div>
       <div class="list">${list}</div>
     </section>${tabbar("home")}`);
+    if (!installChecked) { installChecked = true; maybeShowInstallGuide(); }   // one-time Safari install prompt
   }
 
   function lessonRow(l, due) {
@@ -988,8 +989,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="section-label"><span class="t-caps" style="opacity:.75">Account</span></div>
       <div class="list">
         <button class="row" data-act="sign-out"><span class="row__main"><span class="row__title">Sign out</span></span>${icon("chevron", "icon--sm")}</button>
+        <button class="row" data-act="delete-account"><span class="row__main"><span class="row__title" style="color:var(--destructive)">Delete account</span></span>${icon("chevron", "icon--sm")}</button>
       </div>
-      <div class="muted" style="margin-top:var(--s-6)">People, invites and delete-my-account come with real sign-in (Phase 5).</div>
+      <div class="muted" style="margin-top:var(--s-6)">People &amp; invites come with real sign-in (Phase 5).</div>
     </section>${tabbar("me")}`);
   }
   function toggleExact() { setPref("aliyah.exact", exactSetting() ? "off" : "on"); renderMe(); }
@@ -1029,6 +1031,72 @@ document.addEventListener("DOMContentLoaded", async () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function signOutDemo() { renderAuth("signin"); }
+
+  // ---- Delete account (Phase 5b, board 31/33) -----------------------------
+  //  Demo models deletion as a 4-week pending flag + restore (the designed window).
+  //  Real tombstone + cross-device purge hooks account.deleteAccount at Phase 5c.
+  function deletePendingDate() { try { return localStorage.getItem("aliyah.deletePending"); } catch { return null; } }
+  function openDeleteAccount() { if (deletePendingDate()) renderDeletePending(); else renderDeleteAccount(); }
+  function renderDeleteAccount() {
+    mount(`<section class="screen screen--tabbed">
+      <div class="study-head__row" style="margin-bottom:var(--s-6)">
+        <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
+        <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Delete account</span>
+      </div>
+      <div class="muted" style="margin-bottom:var(--s-5)">This removes your lessons, words and progress from every device. It happens after a 4-week window, so you can change your mind. Export a copy first if you want to keep one.</div>
+      <button class="btn btn--secondary" data-act="export-data" style="margin-bottom:var(--s-7)">Export my data first</button>
+      <label class="field-label">Type delete to confirm</label>
+      <input id="del-field" class="field" placeholder="delete" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Type delete to confirm">
+      <button class="btn btn--destructive" data-act="delete-confirm" disabled style="margin-top:var(--s-6)">Delete my account</button>
+      <button class="btn btn--secondary" data-act="tab" data-tab="me">Keep my account</button>
+    </section>${tabbar("me")}`);
+    const f = document.getElementById("del-field");
+    if (f) f.addEventListener("input", () => { const b = app.querySelector('[data-act="delete-confirm"]'); if (b) b.disabled = f.value.trim().toLowerCase() !== "delete"; });
+  }
+  function doDeleteAccount() {
+    const f = document.getElementById("del-field");
+    if (!f || f.value.trim().toLowerCase() !== "delete") return;
+    try { localStorage.setItem("aliyah.deletePending", new Date(now() + 28 * 86400000).toISOString()); } catch {}
+    renderDeletePending();
+  }
+  function renderDeletePending() {
+    const when = deletePendingDate();
+    const d = when ? new Date(when).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "";
+    mount(`<section class="screen screen--tabbed">
+      <div class="placeholder" style="margin-top:var(--s-11)">${icon("restore")}
+        <div class="t-title">Your account is set to be deleted</div>
+        <div class="muted">It will be gone for good on ${esc(d)}. Restore it now to keep everything.</div>
+        <button class="btn btn--primary" data-act="account-restore" style="max-width:280px">Restore my account</button>
+        <button class="btn btn--secondary" data-act="tab" data-tab="me" style="max-width:280px">Let it go</button>
+      </div>
+    </section>${tabbar("me")}`);
+  }
+  function restoreAccount() { try { localStorage.removeItem("aliyah.deletePending"); } catch {} renderMe(); }
+
+  // ---- Install guide (Phase 5b, board 16 E3) — Safari, one time -----------
+  let installChecked = false;
+  function isStandalone() { return navigator.standalone === true || matchMedia("(display-mode: standalone)").matches; }
+  function maybeShowInstallGuide() {
+    try { if (isStandalone() || localStorage.getItem("aliyah.installSeen") === "1") return; } catch { return; }
+    openInstallGuide();
+  }
+  function openInstallGuide() {
+    app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove());
+    app.insertAdjacentHTML("beforeend", `<div class="scrim" data-act="install-dismiss"></div>
+      <div class="sheet">
+        <div class="sheet__handle"></div>
+        <div class="t-caps" style="opacity:.6;margin-bottom:4px">Step 1 of 1 · One time</div>
+        <div class="sheet__title">Add it to your Home Screen</div>
+        <div class="sheet__text">Then it opens like a real app, even without the internet.</div>
+        <div class="install-steps">
+          <div class="install-step"><span class="install-num">1</span><span>Tap Share</span>${icon("share", "icon--sm")}</div>
+          <div class="install-step"><span class="install-num">2</span><span>Choose Add to Home Screen</span></div>
+          <div class="install-step"><span class="install-num">3</span><span>Tap Add</span></div>
+        </div>
+        <button class="btn btn--secondary" data-act="install-dismiss">Maybe later</button>
+      </div>`);
+  }
+  function dismissInstall() { try { localStorage.setItem("aliyah.installSeen", "1"); } catch {} app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove()); }
 
   function renderPlaceholder(tab, title) {
     mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
@@ -1208,6 +1276,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "your-data") renderYourData();
     else if (act === "export-data") doExport();
     else if (act === "sign-out") signOutDemo();
+    else if (act === "delete-account") openDeleteAccount();
+    else if (act === "delete-confirm") doDeleteAccount();
+    else if (act === "account-restore") restoreAccount();
+    else if (act === "install-dismiss") dismissInstall();
     // Logged-out screens (PHASE 5: real OAuth + allowlist replaces these)
     else if (act === "auth-continue") authGoTo("notlist");   // demo: every account → not-on-list
     else if (act === "auth-retry") authGoTo("signin");

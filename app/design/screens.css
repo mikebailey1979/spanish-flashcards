@@ -153,3 +153,12 @@
 .avatar { width: 52px; height: 52px; flex: none; border-radius: 50%;
   background: #fff; color: var(--btn-text); display: grid; place-items: center;
   font-weight: 800; font-size: 22px; }
+
+/* ---- Install guide (Phase 5b) ------------------------------------------- */
+.install-steps { display: flex; flex-direction: column; gap: var(--s-4); margin: var(--s-5) 0 var(--s-2); }
+.install-step { display: flex; align-items: center; gap: var(--s-5); color: var(--sheet-ink);
+  font-size: var(--t-body-l); font-weight: 600; }
+.install-step .icon { color: var(--btn-text); }
+.install-num { width: 28px; height: 28px; flex: none; border-radius: 50%;
+  background: var(--sheet-field); color: var(--btn-text); display: grid; place-items: center;
+  font-weight: 800; font-size: 14px; }
