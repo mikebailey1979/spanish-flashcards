@@ -1368,15 +1368,111 @@ document.addEventListener("DOMContentLoaded", async () => {
     segSplitState = null; renderCaptureFound();
   }
 
-  // 6c bridge — the word-by-word HITL review (C4/H3) + import commit land here next.
-  function renderSegReviewStub() {
-    const n = (capture.proposal && capture.proposal.lessons.length) || 0;
+  // C4 — word-level HITL review + H3 "Fix this word", one lesson at a time, then
+  //  commit the kept words via io.importLesson (the tested commit) so they become
+  //  real `ocr`-sourced lessons under the active account and sync like anything else.
+  function startWordReview() {
+    for (const l of capture.proposal.lessons)
+      for (const s of l.sections)
+        for (const w of s.words)
+          if (w.keep === undefined) w.keep = !w.duplicate;   // duplicates start unticked
+    capture.review = { idx: 0, filter: "__all__", saved: [] };
+    renderWordReview();
+  }
+  function renderWordReview() {
+    const prop = capture.proposal, R = capture.review, l = prop.lessons[R.idx];
+    const cats = l.sections.map((s) => s.cat);
+    const filterChips = ["__all__", ...cats].map((c) => {
+      const on = R.filter === c;
+      return `<button class="chip" data-act="rw-filter" data-c="${esc(c)}" style="${on ? "background:#fff;color:var(--btn-text)" : ""}">${c === "__all__" ? "All" : esc(c)}</button>`;
+    }).join("");
+    const rows = [];
+    l.sections.forEach((s, si) => {
+      if (R.filter !== "__all__" && R.filter !== s.cat) return;
+      s.words.forEach((w, wi) => {
+        const low = w.confidence === "low" && !w.duplicate;
+        const box = `<button data-act="rw-toggle" data-si="${si}" data-wi="${wi}" aria-label="${w.keep ? "Remove" : "Keep"} ${esc(w.front)}" style="width:26px;height:26px;flex:0 0 auto;border-radius:8px;border:2px solid ${w.keep ? "transparent" : "rgba(128,128,128,.6)"};background:${w.keep ? "var(--accent,#2273C4)" : "transparent"};color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer">${w.keep ? icon("check", "icon--sm") : ""}</button>`;
+        const badge = w.duplicate ? `<span class="chip" style="pointer-events:none;opacity:.8">Already saved</span>`
+          : low ? `<button class="chip" data-act="rw-edit" data-si="${si}" data-wi="${wi}">Check this</button>` : "";
+        rows.push(`<div style="display:flex;align-items:center;gap:var(--s-3);padding:var(--s-3);border-radius:var(--s-3);${low ? "background:rgba(127,178,255,.12)" : ""};opacity:${w.keep ? "1" : ".55"}">
+          ${box}
+          <button data-act="rw-edit" data-si="${si}" data-wi="${wi}" style="flex:1;text-align:left;border:0;background:transparent;color:inherit;cursor:pointer">
+            <span class="row__title" style="display:block">${esc(w.front)}</span>
+            <span class="row__meta">${esc(w.back) || "—"}</span></button>
+          ${badge}
+        </div>`);
+      });
+    });
+    const keepCount = l.sections.reduce((a, s) => a + s.words.filter((w) => w.keep).length, 0);
+    const next = prop.lessons[R.idx + 1];
     mount(`<section class="screen screen--tabbed">
-      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 4 of 4 · Check the words</div>
-      <h1 class="t-h1">Word review is next</h1>
-      <p class="muted" style="margin-top:var(--s-2)">${n} lesson${n === 1 ? "" : "s"} ready. The word-by-word review — keep or untick words, fix low-confidence ones, skip duplicates — and saving into your lessons land in 6c.</p>
-      <button class="btn btn--secondary" data-act="seg-back" style="margin-top:var(--s-6)">Back to the lessons</button>
-      <button class="btn btn--primary" data-act="cap-cancel">Back to home</button>
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 4 of 4 · Check the words · Lesson ${R.idx + 1} of ${prop.lessons.length}</div>
+      <h1 class="t-h1" style="font-size:var(--t-title)">${esc(l.name)}</h1>
+      <p class="muted" style="margin-top:4px">Untick any word you don’t want. Tap a word to fix it.</p>
+      <div class="chips" style="margin:var(--s-4) 0">${filterChips}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${rows.join("")}</div>
+      <button class="btn btn--primary" data-act="rw-commit" ${keepCount ? "" : "disabled"} style="margin-top:var(--s-6)${keepCount ? "" : ";opacity:.5;pointer-events:none"}">Add ${keepCount} word${keepCount === 1 ? "" : "s"} to this lesson</button>
+      ${next ? `<div class="muted" style="text-align:center;margin-top:var(--s-3)">Next: ${esc(next.name)}, ${propWords(next)} words</div>` : ""}
+      <button class="btn btn--secondary" data-act="seg-back">Back to the lessons</button>
+    </section>${tabbar("add")}`);
+  }
+  function openWordFix(si, wi) {
+    const R = capture.review, l = capture.proposal.lessons[R.idx], sec = l.sections[si], w = sec.words[wi];
+    const catOpts = l.sections.map((s) => `<option value="${esc(s.cat)}" ${s.cat === sec.cat ? "selected" : ""}>${esc(s.cat)}</option>`).join("");
+    sheet(`<div class="sheet__title">Fix this word</div>
+      <div class="sheet__text">Our Spanish checker wasn’t sure about this one.</div>
+      <label class="field-label">Spanish</label><input id="wf-es" class="field" value="${esc(w.front)}">
+      <label class="field-label">English</label><input id="wf-en" class="field" value="${esc(w.back)}" placeholder="Translation">
+      <label class="field-label">Section</label><select id="wf-cat" class="field">${catOpts}</select>
+      <button class="btn btn--primary" data-act="wf-save" data-si="${si}" data-wi="${wi}">Looks right</button>
+      <button class="btn btn--secondary" data-act="wf-remove" data-si="${si}" data-wi="${wi}">Don’t add this word</button>`);
+    const f = document.getElementById("wf-es"); if (f) f.focus();
+  }
+  function doWordFix(si, wi) {
+    const l = capture.proposal.lessons[capture.review.idx], sec = l.sections[si], w = sec.words[wi];
+    const es = document.getElementById("wf-es"), en = document.getElementById("wf-en"), cat = document.getElementById("wf-cat");
+    w.front = (es ? es.value : w.front).trim();
+    w.back = (en ? en.value : w.back).trim();
+    w.confidence = null; w.keep = true;                         // fixed → keep
+    const newCat = cat ? cat.value : sec.cat;
+    if (newCat !== sec.cat) {
+      sec.words.splice(wi, 1);
+      let tgt = l.sections.find((s) => s.cat === newCat);
+      if (!tgt) { tgt = { cat: newCat, words: [] }; l.sections.push(tgt); }
+      tgt.words.push(w);
+      if (!sec.words.length) l.sections = l.sections.filter((s) => s !== sec);
+    }
+    closeSheet(); renderWordReview();
+  }
+  function removeWord(si, wi) {
+    capture.proposal.lessons[capture.review.idx].sections[si].words[wi].keep = false;
+    closeSheet(); renderWordReview();
+  }
+  async function commitReviewLesson() {
+    const R = capture.review, l = capture.proposal.lessons[R.idx];
+    const cards = [];
+    for (const s of l.sections) for (const w of s.words) if (w.keep) cards.push({ front: w.front, back: w.back, category: s.cat });
+    if (cards.length) {
+      const res = await self.SpanishFlashcardsImport.importLesson(store, ctx.contentOwnerId, { name: l.name, source: "ocr", cards }, now());
+      R.saved.push({ name: l.name, count: res.cardCount });
+    }
+    R.idx++; R.filter = "__all__";
+    if (R.idx >= capture.proposal.lessons.length) { await refreshContent(); renderCaptureSaved(); }
+    else renderWordReview();
+  }
+  function renderCaptureSaved() {
+    const saved = capture.review.saved, total = saved.reduce((a, s) => a + s.count, 0);
+    const name = ((emu ? emu.name : user.displayName) || "").split(" ")[0];
+    const rows = saved.map((s) => `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title">${esc(s.name)}</span><span class="row__meta">${s.count} word${s.count === 1 ? "" : "s"}</span></span>${icon("check", "icon--sm")}</div>`).join("");
+    mount(`<section class="screen screen--tabbed">
+      <div class="hero" style="align-items:center;text-align:center">
+        <div class="mark" style="width:72px;height:72px;animation:none"><i class="mark__icon icon--check" style="background:var(--btn-text)"></i></div>
+        <div class="t-hero" style="font-size:clamp(28px,8vw,40px)">¡Listo${name ? ", " + esc(name) : ""}!</div>
+        <div class="muted">${saved.length} new lesson${saved.length === 1 ? "" : "s"} · ${total} new word${total === 1 ? "" : "s"}</div>
+      </div>
+      <div class="list" style="margin-top:var(--s-5)">${rows}</div>
+      <button class="btn btn--primary" data-act="cap-done-lessons" style="margin-top:var(--s-6)">See my lessons</button>
+      <button class="btn btn--secondary" data-act="cap-cancel">Back to home</button>
     </section>${tabbar("add")}`);
   }
 
@@ -1554,7 +1650,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "seg-split-confirm") doSegSplit();
     else if (act === "seg-merge") { segMerge(Number(t.dataset.i)); renderCaptureFound(); }
     else if (act === "seg-back") renderCaptureFound();
-    else if (act === "seg-review") renderSegReviewStub();
+    else if (act === "seg-review") startWordReview();
+    else if (act === "rw-filter") { capture.review.filter = t.dataset.c; renderWordReview(); }
+    else if (act === "rw-toggle") { const w = capture.proposal.lessons[capture.review.idx].sections[Number(t.dataset.si)].words[Number(t.dataset.wi)]; w.keep = !w.keep; renderWordReview(); }
+    else if (act === "rw-edit") openWordFix(Number(t.dataset.si), Number(t.dataset.wi));
+    else if (act === "wf-save") doWordFix(Number(t.dataset.si), Number(t.dataset.wi));
+    else if (act === "wf-remove") removeWord(Number(t.dataset.si), Number(t.dataset.wi));
+    else if (act === "rw-commit") commitReviewLesson();
+    else if (act === "cap-done-lessons") { capture = null; renderLessons(); }
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
     else if (act === "idk") idk();
