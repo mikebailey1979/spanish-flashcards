@@ -218,6 +218,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ---- screens -------------------------------------------------------------
   async function renderHome() {
+    if (!lessons.length) return renderFirstRun();
     const D = await loadData();
     const due = await dueList(lessons);
     const byLesson = {};
@@ -1257,11 +1258,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="btn" data-act="cap-cancel" style="margin-top:var(--s-5);background:transparent;border:1px solid rgba(128,128,128,.4)">Cancel</button>
       </section>`);
     };
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return renderCapOffline();
     paint(0);
     let step = 0;
     const tick = setInterval(() => { step = Math.min(step + 1, CAP_STEPS.length - 1); paint(step); }, 500);
-    mockImportFromPhoto(capture ? capture.pages : [])
-      .then((proposal) => { clearInterval(tick); capture.proposal = proposal; paint(CAP_STEPS.length); setTimeout(renderCaptureFound, 400); })
+    mockImportFromPhoto(capture ? capture.pages : [], capture && capture.mode)
+      .then((proposal) => {
+        clearInterval(tick);
+        if (proposal && proposal.unreadablePages && proposal.unreadablePages.length) { capture.proposal = proposal; return renderCapUnreadable(proposal.unreadablePages); }
+        const total = ((proposal && proposal.lessons) || []).reduce((a, l) => a + l.sections.reduce((b, s) => b + s.words.length, 0), 0);
+        if (!proposal || !proposal.lessons || !proposal.lessons.length || total === 0) return renderCapNoWords();
+        capture.proposal = proposal; paint(CAP_STEPS.length); setTimeout(renderCaptureFound, 400);
+      })
       .catch(() => { clearInterval(tick); renderCaptureProblem(); });
   }
 
@@ -1488,28 +1496,99 @@ document.addEventListener("DOMContentLoaded", async () => {
     </section>${tabbar("add")}`);
   }
 
+  // First-run onboarding (board 26) — shown on Home when the account has no lessons.
+  function renderFirstRun() {
+    const name = ((emu ? emu.name : user.displayName) || "").split(" ")[0];
+    const step = (ic, txt) => `<div style="display:flex;align-items:center;gap:var(--s-3)">${icon(ic, "icon--sm")}<span>${txt}</span></div>`;
+    mount(`<section class="screen screen--tabbed">
+      <h1 class="t-h1">Hi${name ? ", " + esc(name) : ""}</h1>
+      <div class="hero" style="margin-top:var(--s-5)">
+        <div class="t-caps hero__label">Let’s start</div>
+        <div class="t-title">Add your first homework</div>
+        <div class="muted">Take a photo of a page. We turn the Spanish words into flashcards for you.</div>
+        <div style="display:flex;flex-direction:column;gap:var(--s-3);margin:var(--s-4) 0">
+          ${step("camera", "Take a photo")}${step("lessons", "We make a lesson")}${step("check", "You study it")}
+        </div>
+        <button class="btn btn--primary" data-act="cap-add-cam">${icon("camera", "icon--sm")} Take a photo</button>
+        <button class="btn btn--secondary" data-act="cap-add-lib">Choose from library</button>
+      </div>
+    </section>${tabbar("home")}`);
+  }
+
+  // C5 capture problem states — calm blue, blame neither her nor the photo.
+  function renderCapOffline() {
+    mount(`<section class="screen screen--tabbed">
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
+      <h1 class="t-h1">You’re offline</h1>
+      <div class="placeholder" style="margin-top:var(--s-5)">${icon("offline")}<div class="t-title">Reading new pages needs the internet</div><div class="muted">Your photos are safe on this phone. Studying still works offline.</div></div>
+      <div style="display:flex;flex-direction:column;gap:var(--s-3);margin-top:var(--s-5)">
+        <button class="btn btn--primary" data-act="cap-study">Study a lesson</button>
+        <button class="btn btn--secondary" data-act="cap-save-later">Save pages and read later</button>
+      </div>
+    </section>${tabbar("add")}`);
+  }
+  function renderCapNoWords() {
+    mount(`<section class="screen screen--tabbed">
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
+      <h1 class="t-h1">We couldn’t find any words</h1>
+      <div class="placeholder" style="margin-top:var(--s-5)">${icon("search")}<div class="t-title">No printed Spanish found</div><div class="muted">The page may be too dark or cropped, or it’s handwriting. Printed vocabulary lists read best.</div></div>
+      <div style="display:flex;flex-direction:column;gap:var(--s-3);margin-top:var(--s-5)">
+        <button class="btn btn--primary" data-act="cap-retake">Take a new photo</button>
+        <button class="btn btn--secondary" data-act="cap-add-manual">Add words by hand</button>
+      </div>
+    </section>${tabbar("add")}`);
+  }
+  function renderCapUnreadable(badPages) {
+    const bad = (badPages || []).slice().sort((a, b) => a - b);
+    const total = capture ? capture.pages.length : 0;
+    const good = []; for (let i = 1; i <= total; i++) if (!bad.includes(i)) good.push(i);
+    const tiles = (capture ? capture.pages : []).map((p, i) => {
+      const n = i + 1, isBad = bad.includes(n);
+      return `<div style="position:relative;aspect-ratio:3/4;border-radius:var(--s-3);overflow:hidden;background:rgba(128,128,128,.18)${isBad ? ";outline:2px solid #E8B84B;outline-offset:-2px" : ""}">
+        ${p.dataUrl ? `<img src="${p.dataUrl}" style="width:100%;height:100%;object-fit:cover">` : ""}
+        <span style="position:absolute;left:6px;top:6px;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">${n}</span>
+        ${isBad ? `<span style="position:absolute;right:6px;top:6px;width:22px;height:22px;border-radius:11px;background:#E8B84B;color:#1a1200;font-weight:800;display:flex;align-items:center;justify-content:center">!</span>` : ""}
+      </div>`;
+    }).join("");
+    mount(`<section class="screen screen--tabbed">
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
+      <h1 class="t-h1">${bad.length === 1 ? "One page needs a retake" : bad.length + " pages need a retake"}</h1>
+      <p class="muted" style="margin-top:var(--s-2)">Page${bad.length > 1 ? "s" : ""} ${bad.join(", ")} came out too blurry to read.${good.length ? ` Page${good.length > 1 ? "s" : ""} ${good.join(", ")} ${good.length > 1 ? "are" : "is"} fine.` : ""}</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3);margin-top:var(--s-4)">${tiles}</div>
+      <div style="display:flex;flex-direction:column;gap:var(--s-3);margin-top:var(--s-5)">
+        <button class="btn btn--primary" data-act="cap-retake">Retake the pages</button>
+        <button class="btn btn--secondary" data-act="cap-skip-bad" data-bad="${bad.join(",")}">Skip ${bad.length === 1 ? "that page" : "those pages"} · read the rest</button>
+      </div>
+    </section>${tabbar("add")}`);
+  }
+
   // DEV MOCK proposer — replaced by the Netlify Function (Claude vision) at 6e.
-  function mockImportFromPhoto(pages) {
+  //  `mode` ("nowords" | "unreadable") only exists to exercise the C5 states.
+  function mockImportFromPhoto(pages, mode) {
     const np = (pages && pages.length) || 1;
-    return new Promise((resolve) => setTimeout(() => resolve({
-      lessons: [
-        { name: "Las frutas — Fruits", pages: [1], sections: [
-          { cat: "Fruits", words: [
-            { front: "la manzana", back: "apple" },
-            { front: "el plátano", back: "banana" },
-          ] },
-          { cat: "Berries", words: [
-            { front: "la fresa", back: "strawberry", confidence: "low" },
-            { front: "la sandía", back: "watermelon", duplicate: true },
-          ] } ] },
-        { name: "La comida callejera — Street food", pages: np > 1 ? [2, Math.min(np, 3)] : [1], sections: [
-          { cat: "Street food", words: [
-            { front: "el taco", back: "taco" },
-            { front: "la quesadilla", back: "quesadilla" },
-            { front: "el elote", back: "corn on the cob", confidence: "low" },
-          ] } ] },
-      ],
-    }), 1500));
+    return new Promise((resolve) => setTimeout(() => {
+      if (mode === "nowords") return resolve({ lessons: [] });
+      if (mode === "unreadable") return resolve({ unreadablePages: [2], lessons: [] });
+      resolve({
+        lessons: [
+          { name: "Las frutas — Fruits", pages: [1], sections: [
+            { cat: "Fruits", words: [
+              { front: "la manzana", back: "apple" },
+              { front: "el plátano", back: "banana" },
+            ] },
+            { cat: "Berries", words: [
+              { front: "la fresa", back: "strawberry", confidence: "low" },
+              { front: "la sandía", back: "watermelon", duplicate: true },
+            ] } ] },
+          { name: "La comida callejera — Street food", pages: np > 1 ? [2, Math.min(np, 3)] : [1], sections: [
+            { cat: "Street food", words: [
+              { front: "el taco", back: "taco" },
+              { front: "la quesadilla", back: "quesadilla" },
+              { front: "el elote", back: "corn on the cob", confidence: "low" },
+            ] } ] },
+        ],
+      });
+    }, 1500));
   }
 
   function renderDone() {
@@ -1658,6 +1737,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "wf-remove") removeWord(Number(t.dataset.si), Number(t.dataset.wi));
     else if (act === "rw-commit") commitReviewLesson();
     else if (act === "cap-done-lessons") { capture = null; renderLessons(); }
+    else if (act === "cap-study") { capture = null; renderLessons(); }
+    else if (act === "cap-save-later") renderHome();
+    else if (act === "cap-retake") { if (capture) capture.mode = null; renderCapture(); }
+    else if (act === "cap-add-manual") { capture = null; renderLessons(); }
+    else if (act === "cap-skip-bad") { if (capture) { const bad = (t.dataset.bad || "").split(",").map(Number); capture.pages = capture.pages.filter((p, i) => !bad.includes(i + 1)); capture.mode = null; renderReading(); } }
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
     else if (act === "idk") idk();
@@ -1854,5 +1938,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   authGate();
   // console poking (getters: user/ctx are reassigned on sign-in)
   window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync,
-    cap: { start: startCapture, reading: renderReading, seed(n) { capture = { pages: Array.from({ length: n || 3 }, (_, i) => ({ id: "pg" + i, dataUrl: "" })), proposal: null }; renderReading(); } } };
+    cap: { start: startCapture, reading: renderReading, firstrun: renderFirstRun, offline: renderCapOffline,
+      seed(n, mode) { capture = { pages: Array.from({ length: n || 3 }, (_, i) => ({ id: "pg" + i, dataUrl: "" })), proposal: null, mode }; renderReading(); } } };
 });
