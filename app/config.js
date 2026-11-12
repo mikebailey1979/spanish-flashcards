@@ -12,7 +12,7 @@
   "use strict";
   var PROD = {
     url: "https://api.aliyahsflashcards.com",
-    anonKey: "REPLACE_WITH_ANON_KEY", // public anon JWT; paste to enable sign-in on prod
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzk0MTY4MDQyLCJleHAiOjE5NTE4NDgwNDJ9.EKBYSwtBXRnADzG2HX2aZxLW9PvFFlMoCm3mkEZ6_80", // public anon JWT (role:anon) — safe to ship
   };
   var host = (root.location && root.location.hostname) || "";
   var onProdHost = /(^|\.)aliyahsflashcards\.(com|netlify\.app)$/.test(host);
