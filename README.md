@@ -2,13 +2,13 @@
 
 An offline-first, installable **flashcard PWA** for learning Spanish (built subject-agnostically, so it can grow beyond Spanish). It turns photos of vocabulary homework into spaced-repetition flashcards, with cross-device sync for a small, invite-only set of users.
 
-> **Status:** under active rebuild. The local data layer, spaced-repetition scheduler, forgiving answer-matching, and the seeded content are complete and tested; cross-device sync and the on-device OCR import are in progress. See `PROGRESS.md` (in the planning workspace) for the milestone log.
+> **Status:** under active rebuild. The data layer, spaced-repetition scheduler, forgiving matcher, seeded content, accounts + Google sign-in, cross-device sync, and the photo→flashcards import (Claude vision) are built and wired; on-demand AI help (explanations, example sentences, translation suggestions, flag adjudication) is landing, with pronunciation feedback next. Remaining: final on-device end-to-end testing and PWA offline polish. See `PROGRESS.md` (in the planning workspace) for the milestone log.
 
 ## What it does
 - **Spaced repetition & recall.** A Leitner/SM-2-lite scheduler with real due dates; each study session serves the cards that are actually due.
 - **Forgiving answers.** Accepts natural variation — accents, case, punctuation, articles, possessives, singular/plural, minor typos, and multiple valid translations in any order — *except* where a card is specifically teaching that form.
 - **Lessons = assignments.** Each imported worksheet becomes a selectable lesson; you can study one, several, or all at once, and drill a sub-section.
-- **Photo import (in progress).** Snap a vocabulary page → on-device OCR → you review/approve the extracted pairs → it becomes a lesson. Photos are discarded after approval; only the approved word pairs are kept.
+- **Photo import.** Snap vocabulary pages → an AI reader (Claude vision) extracts the Spanish↔English pairs → you review/approve them → it becomes a lesson. Images are sent only to read the page and are never stored; only the approved word pairs are kept.
 - **Multiple users.** Invite-only via Google sign-in and an allowlist. An admin can inspect another user's lessons without affecting their learning progress.
 
 ## Privacy
