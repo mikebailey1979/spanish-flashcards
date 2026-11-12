@@ -20,29 +20,30 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ---- data layer setup ----------------------------------------------------
   const store = createStore(createIdbAdapter({ name: "aliyah-flashcards-dev" }));
-  let user = await store.getUser(DEMO_ID);
-  if (!user) {
-    user = model.createUser({ email: "aliyah@local", displayName: "Aliyah", role: "user" }, now());
-    user.id = DEMO_ID;
-    await store.putUser(user);
+  // The local demo account — the active account ONLY when no backend is configured
+  // (local/dev). In production the signed-in Google account is bound in authGate.
+  let demoUser = await store.getUser(DEMO_ID);
+  if (!demoUser) {
+    demoUser = model.createUser({ email: "aliyah@local", displayName: "Aliyah", role: "user" }, now());
+    demoUser.id = DEMO_ID;
+    await store.putUser(demoUser);
   }
-  await seedUser(store, DEMO_ID, now());
+  let user = demoUser;                                        // active account (swapped in on sign-in)
   let ctx = store.studyContext(user);                         // swapped during emulation (Phase 5d)
   let emu = null;                                             // {targetId, name, countOwn} while Viewing as
-  let lessons = await store.listLessons(ctx.contentOwnerId);
+  let lessons = [];                                          // populated by refreshContent() before first paint
+  const cardLesson = {};                                    // card.id -> lesson, for grouping due counts
+  let allCards = [];                                         // for MC distractors
 
-  // card.id -> lesson, for grouping due counts
-  const cardLesson = {};
-  for (const l of lessons) for (const id of l.cardIds) cardLesson[id] = l;
-  let allCards = await store.listCards(ctx.contentOwnerId);   // for MC distractors
-
-  // Rebuild the content caches after any lesson/card edit, or an emulation switch.
-  async function refreshContent() {
+  // Rebuild the content caches after any lesson/card edit, or an emulation switch,
+  // then schedule a background sync (a no-op until a backend is wired).
+  async function _recache() {
     lessons = await store.listLessons(ctx.contentOwnerId);
     for (const k in cardLesson) delete cardLesson[k];
     for (const l of lessons) for (const id of l.cardIds) cardLesson[id] = l;
     allCards = await store.listCards(ctx.contentOwnerId);
   }
+  async function refreshContent() { await _recache(); scheduleSync(); }
 
   // ---- helpers -------------------------------------------------------------
   const CHEERS = ["¡Muy bien!", "¡Eso es!", "¡Perfecto!", "¡Genial!"];
@@ -1387,7 +1388,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   //  OAuth client + SITE_URL = the Netlify origin. See PROGRESS.md.
   //  NOTE: per-account data binding + cross-device sync land once the backend is live;
   //  for now the signed-in gate decides access, and local data stays on the demo store.
-  function authConfig() { try { return JSON.parse(localStorage.getItem("aliyah.supabase") || "null"); } catch { return null; } }
+  //  Backend config resolution: an explicit localStorage override wins (dev/testing),
+  //  then the baked-in prod default from config.js (null until the anon key is filled
+  //  in, and only on a prod host). `aliyah.demo=1` forces demo mode anywhere.
+  function authConfig() {
+    try {
+      if (localStorage.getItem("aliyah.demo") === "1") return null;
+      const ls = JSON.parse(localStorage.getItem("aliyah.supabase") || "null");
+      if (ls && ls.url && ls.anonKey) return ls;
+    } catch {}
+    return (self.AliyahConfig && self.AliyahConfig.backend) || null;
+  }
   let _auth = null;
   function loadSupabase() {
     if (self.supabase && self.supabase.createClient) return Promise.resolve(self.supabase);
@@ -1415,21 +1426,78 @@ document.addEventListener("DOMContentLoaded", async () => {
     try { const auth = await getAuth(); if (auth) await auth.signOut(); } catch {}
     renderAuth("signin");
   }
+  // ---- account binding + sync (prod) ---------------------------------------
+  let _sync = null, _activated = null, _demoReady = false, _syncing = false, _syncTimer = null;
+  const syncCursorKey = (uid) => "aliyah.synccursor:" + uid;
+  function scheduleSync() { if (!_sync) return; clearTimeout(_syncTimer); _syncTimer = setTimeout(runSync, 1500); }
+  async function runSync() {
+    if (!_sync || !user || _syncing) return;
+    _syncing = true;
+    const k = syncCursorKey(user.id);
+    try {
+      let cur = localStorage.getItem(k) || undefined;
+      cur = await _sync.sync(cur);
+      try { if (cur) localStorage.setItem(k, cur); } catch {}
+      await _recache();
+    } catch (e) { console.warn("sync deferred (offline?):", e && e.message); }
+    finally { _syncing = false; }
+  }
+
+  // The local demo account — used only when no backend is configured.
+  async function ensureDemo() {
+    if (_demoReady) { await _recache(); return; }
+    user = demoUser; emu = null; ctx = store.studyContext(user);
+    await seedUser(store, DEMO_ID, now());
+    _demoReady = true;
+    await _recache();
+  }
+
+  // Bind the signed-in Google account as the active account, load its data, sync.
+  async function activateAccount(session) {
+    const auth = _auth;
+    const acct = await auth.ensureUserRecord(store, session, now());
+    if (acct) user = acct;
+    emu = null;
+    ctx = store.studyContext(user);
+    if (!_sync && self.SpanishFlashcardsSync && self.SpanishFlashcardsSupabaseTransport) {
+      const cfg = authConfig();
+      const transport = self.SpanishFlashcardsSupabaseTransport.createSupabaseTransport({
+        url: cfg.url, anonKey: cfg.anonKey, getAccessToken: () => auth.getAccessToken(),
+      });
+      _sync = self.SpanishFlashcardsSync.createSync(store, transport);
+      setInterval(scheduleSync, 60000);
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleSync(); });
+    }
+    // Pull server state down FIRST (so seeding can't duplicate an existing account),
+    // then seed starter content only if this account still has none.
+    const k = syncCursorKey(user.id);
+    try {
+      let cur = localStorage.getItem(k) || undefined;
+      if (_sync) { cur = await _sync.pull(cur); try { if (cur) localStorage.setItem(k, cur); } catch {} }
+    } catch (e) { console.warn("initial pull deferred (offline?):", e && e.message); }
+    await seedUser(store, user.id, now());
+    await _recache();
+    scheduleSync();                                 // push the seed + catch up, in the background
+  }
+
   // Decide the first screen. Dev route (#dev=…) always wins for design review.
   async function authGate() {
     applyTheme();
     const m = /(?:^|[#&])dev=(signin|notlist|notonlist)/.exec(location.hash);
     if (m) { renderAuth(m[1] === "signin" ? "signin" : "notlist"); return; }
     let auth = null; try { auth = await getAuth(); } catch {}
-    if (!auth) { renderHome(); return; }            // unconfigured → local demo
+    if (!auth) { await ensureDemo(); renderHome(); return; }   // unconfigured → local demo
     let session = null; try { session = await auth.getSession(); } catch {}
-    if (!session) { renderAuth("signin"); return; }
+    if (!session) { _activated = null; renderAuth("signin"); return; }
     let allowed = false; try { allowed = await auth.isAllowed(); } catch {}
     if (!allowed) { renderAuth("notlist", (session.user && session.user.email) || "you@gmail.com"); return; }
-    renderHome();                                   // allowed (per-account data + sync: backend-live)
+    if (_activated !== session.user.id) { _activated = session.user.id; await activateAccount(session); }
+    else { await _recache(); }
+    renderHome();                                   // allowed → per-account data + background sync
   }
   function boot() { authGate(); }
   window.addEventListener("hashchange", authGate);
   authGate();
-  window.__app = { store, user, ctx, lessons, renderAuth, authConfig };   // console poking
+  // console poking (getters: user/ctx are reassigned on sign-in)
+  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync };
 });
