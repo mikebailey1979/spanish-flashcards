@@ -97,6 +97,23 @@ async function importFromPhoto(images) {
   return proposal;
 }
 
+// Explain-my-answer (R1): a short, warm, age-appropriate explanation of the slip.
+async function explainAnswer(card, typed, dir) {
+  const front = (card && card.front) || "";
+  const back = (card && card.back) || "";
+  const asked = dir === "en-es" ? `translate the English "${back}" into Spanish` : `translate the Spanish "${front}" into English`;
+  const theirs = typed ? `answered "${typed}"` : 'tapped "I don\'t know"';
+  const prompt = `You are a warm, encouraging Spanish tutor for a young student (about Spanish 2 level). The flashcard is: Spanish "${front}" = English "${back}". She was asked to ${asked} and ${theirs}. In 1-2 short, friendly, age-appropriate sentences, explain the specific slip (gender, accent, tense, or the right word) and give one quick way to remember it. No preamble, no lists, no markdown - just the explanation, speaking to her directly.`;
+  const client = new Anthropic();
+  const resp = await client.messages.create({
+    model: "claude-sonnet-5-5",
+    max_tokens: 400,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const text = resp.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  return { text };
+}
+
 export const handler = async (event) => {
   const headers = { "Content-Type": "application/json" };
   try {
@@ -111,6 +128,10 @@ export const handler = async (event) => {
     if (op === "importFromPhoto") {
       const proposal = await importFromPhoto(args[0]);
       return { statusCode: 200, headers, body: JSON.stringify(proposal) };
+    }
+    if (op === "explainAnswer") {
+      const r = await explainAnswer(args[0], args[1], args[2]);
+      return { statusCode: 200, headers, body: JSON.stringify(r) };
     }
     return { statusCode: 404, headers, body: JSON.stringify({ error: "unknown op: " + op }) };
   } catch (e) {

@@ -73,6 +73,32 @@ document.addEventListener("DOMContentLoaded", async () => {
       synth.speak(u);
     } catch {}
   }
+  // Explain-my-answer (R1): on-demand AI explanation in a bottom sheet.
+  function aiAdapter() {
+    if (!aiReady() || !self.SpanishFlashcardsAiAdapter) return null;
+    return self.SpanishFlashcardsAiAdapter.createFunctionAiAdapter({
+      endpoint: self.AliyahConfig.ai.endpoint,
+      getAccessToken: () => (_auth ? _auth.getAccessToken() : null),
+    });
+  }
+  function mockExplain(card) {
+    return new Promise((res) => setTimeout(() =>
+      res(`“${(card && card.back) || "that"}” is “${(card && card.front) || "…"}” in Spanish. Tip: picture it while you say the Spanish out loud a couple of times — it sticks faster.`), 700));
+  }
+  async function openExplain(card, typed, dir) {
+    if (!card) return;
+    sheet(`<div class="sheet__title">Explain</div>
+      <div id="explain-body" class="sheet__text" style="min-height:64px;display:flex;align-items:center;gap:var(--s-3)"><span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Thinking…</div>
+      <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
+    let text = "";
+    const ad = aiAdapter();
+    try {
+      if (ad) { const r = await ad.explainAnswer(card, typed || null, dir || "es-en"); text = (r && r.text) || ""; }
+      else { text = await mockExplain(card); }
+    } catch { text = ""; }
+    const body = document.getElementById("explain-body");
+    if (body) { body.style.display = "block"; body.textContent = text || "Couldn’t load an explanation just now — check your connection and try again."; }
+  }
 
   // ---- direction, mode + bidirectional grading (Phase 3) -------------------
   const DIRS = ["es-en", "en-es"];
@@ -595,13 +621,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       markIcon = `<i class="mark__icon icon--close"></i>`;
       cheer = "¡Ánimo! You've got this."; sub = "";
       chip = `<span class="chip">We'll practice it again</span>${(S.mode === "choice" && S.typed) ? `<span class="chip">You picked: ${esc(S.typed)}</span>` : ""}`;
-      link = `<div class="linkrow"><a data-act="noop">That should've counted</a> · <a data-act="noop">Explain</a></div>`;
+      link = `<div class="linkrow"><a data-act="noop">That should've counted</a> · <a data-act="explain">Explain</a></div>`;
       nextLabel = "Next";
     }
     const toolRow = S.idk ? "" : `<div class="toolrow" style="margin-bottom:var(--s-5)">
       <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(c.front)}" aria-label="Hear it in Spanish">${icon("speaker", "icon--sm")}</button>
       <button class="toolbtn" data-act="open-rating">${icon("face-good", "icon--sm")} How was that?</button>
-      <button class="toolbtn" data-act="noop">Explain</button></div>`;
+      <button class="toolbtn" data-act="explain">Explain</button></div>`;
     mount(`<section class="screen study ${stateClass}">
       ${studyHead()}
       <div class="result">
@@ -1818,6 +1844,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "type-instead") typeInstead();
     else if (act === "grade-next") gradeNext();
     else if (act === "speak") speak(t.dataset.say);
+    else if (act === "explain") openExplain(S.current, S.typed, S.dir);
     else if (act === "open-rating") openRating();
     else if (act === "rate") rate(t.dataset.val);
     else if (act === "close-rating") closeRating();
@@ -2003,7 +2030,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", authGate);
   authGate();
   // console poking (getters: user/ctx are reassigned on sign-in)
-  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync,
+  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync, explain: openExplain,
     cap: { start: startCapture, reading: renderReading, firstrun: renderFirstRun, offline: renderCapOffline, downscale: downscaleImage,
       seed(n, mode) { capture = { pages: Array.from({ length: n || 3 }, (_, i) => ({ id: "pg" + i, dataUrl: "" })), proposal: null, mode }; renderReading(); } } };
 });
