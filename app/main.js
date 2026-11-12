@@ -59,6 +59,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (idk || !res.correct) return "again";
     return res.why === "typo" ? "hard" : "good";
   }
+  // Pronounce-back (R1): browser SpeechSynthesis — free, on-device, offline, no infra.
+  function speak(text, locale) {
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth || !text) return;
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(String(text));
+      u.lang = locale || "es-ES";
+      u.rate = 0.95;
+      const v = (synth.getVoices() || []).find((vo) => /^es/i.test(vo.lang || ""));
+      if (v) u.voice = v;
+      synth.speak(u);
+    } catch {}
+  }
 
   // ---- direction, mode + bidirectional grading (Phase 3) -------------------
   const DIRS = ["es-en", "en-es"];
@@ -319,6 +333,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const rows = cs.map((c) => `<div class="word-row">
         <span class="word-row__main"><span class="word-row__es">${esc(c.front)}</span><span class="word-row__en">${esc(c.back)}</span></span>
         ${c.strictMode && c.strictMode !== "follow" ? `<span class="word-row__flag">${esc(strictLabel[c.strictMode] || "")}</span>` : ""}
+        <button class="word-row__edit" data-act="speak" data-say="${esc(c.front)}" aria-label="Hear ${esc(c.front)}">${icon("speaker")}</button>
         <button class="word-row__edit" data-act="word-edit" data-id="${c.id}" data-lid="${l.id}" aria-label="Edit ${esc(c.front)}">${icon("edit")}</button>
       </div>`).join("");
       return `<div class="section-label"><span class="t-caps" style="opacity:.75">${esc(name === "—" ? "Other" : name)}</span><span class="t-label" style="opacity:.7">${p}%</span></div>
@@ -584,7 +599,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       nextLabel = "Next";
     }
     const toolRow = S.idk ? "" : `<div class="toolrow" style="margin-bottom:var(--s-5)">
-      <button class="toolbtn toolbtn--icon" data-act="noop">${icon("speaker", "icon--sm")}</button>
+      <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(c.front)}" aria-label="Hear it in Spanish">${icon("speaker", "icon--sm")}</button>
       <button class="toolbtn" data-act="open-rating">${icon("face-good", "icon--sm")} How was that?</button>
       <button class="toolbtn" data-act="noop">Explain</button></div>`;
     mount(`<section class="screen study ${stateClass}">
@@ -1802,6 +1817,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "speak-retry") speakRetry();
     else if (act === "type-instead") typeInstead();
     else if (act === "grade-next") gradeNext();
+    else if (act === "speak") speak(t.dataset.say);
     else if (act === "open-rating") openRating();
     else if (act === "rate") rate(t.dataset.val);
     else if (act === "close-rating") closeRating();
