@@ -1,0 +1,9 @@
+# Netlify config for Aliyah's Flashcards.
+# Static site published from the repo root (the PWA lives at /app/ and loads ../src).
+# Serverless functions (the Claude-vision OCR importer) live in netlify/functions.
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

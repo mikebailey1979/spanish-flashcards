@@ -1,0 +1,181 @@
+/* Aliyah's Flashcards — screen compositions (Phase 1). Depends on base + components. */
+
+/* ---- Study header (progress bar + exit / lesson / counter) ---------------- */
+.study-head { display: flex; flex-direction: column; gap: var(--s-6); }
+.study-head__row { display: flex; align-items: center; gap: var(--s-5); }
+.study-head__exit { width: 36px; height: 36px; flex: none; border: 0; cursor: pointer;
+  border-radius: 50%; background: var(--surface-1); color: inherit;
+  display: grid; place-items: center; }
+.study-head__exit .icon { width: 18px; height: 18px; }
+.study-head__lesson { flex: 1; font-size: 15px; font-weight: 700; opacity: .92;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.study-head__count { font-size: 14px; font-weight: 700; opacity: .7; }
+
+/* ---- Study question ------------------------------------------------------- */
+.study { justify-content: space-between; }
+.study__stage { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--s-5); padding: var(--s-9) 0; }
+.study__dir { opacity: .85; }
+.study__prompt { max-width: 100%; }
+.study__sub { opacity: .85; font-size: var(--t-body-l); }
+.study__controls { display: flex; flex-direction: column; gap: var(--s-4); }
+.study__answerrow { display: flex; gap: var(--s-4); }
+.study__answerrow .btn { width: auto; flex: 1; }
+.study__answerrow .btn--idk { flex: 0 0 auto; padding: 0 var(--s-7); }
+/* Choose-mode options */
+.options { display: flex; flex-direction: column; gap: var(--s-4); width: 100%; }
+.option { width: 100%; text-align: center; border: 0; cursor: pointer;
+  background: var(--surface-1); color: inherit; border-radius: var(--r-row);
+  min-height: var(--opt-h); font-size: var(--t-body-l); font-weight: 700; padding: 0 var(--s-6); }
+.idk-link { background: none; border: 0; color: inherit; cursor: pointer;
+  text-decoration: underline; font-weight: 700; font-size: var(--t-label);
+  align-self: center; padding: var(--s-4); }
+
+/* ---- Study result (answer state) ------------------------------------------ */
+.result { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--s-6); }
+.result .mark-wrap { margin-bottom: var(--s-2); }
+
+/* ---- Session done --------------------------------------------------------- */
+.done { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--s-6); }
+.done__num { line-height: .9; }
+.done__trickies { display: flex; flex-wrap: wrap; gap: var(--s-3); justify-content: center; }
+
+/* ---- Home ----------------------------------------------------------------- */
+.home__head { display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--s-8); }
+.streak-pill { display: inline-flex; align-items: center; gap: 6px; height: 34px;
+  padding: 0 var(--s-5); border-radius: var(--r-pill); background: var(--surface-2);
+  font-size: 13px; font-weight: 700; }
+.streak-pill .icon { width: 16px; height: 16px; }
+.section-label { display: flex; align-items: center; justify-content: space-between;
+  margin: var(--s-6) 0 var(--s-4); }
+.list { display: flex; flex-direction: column; gap: var(--s-4); }
+
+/* ---- Lessons -------------------------------------------------------------- */
+.row--accent { background: #fff; color: var(--btn-text); }
+.row--accent .row__meta { opacity: .7; }
+
+/* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
+.placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: var(--s-5); opacity: .9; }
+
+/* ---- Speak mode (Phase 3b) ------------------------------------------------ */
+.study__controls.speak { gap: var(--s-5); }
+.speak__mic { display: flex; flex-direction: column; align-items: center; gap: var(--s-4);
+  margin-bottom: var(--s-4); }
+.mic-btn { width: 84px; height: 84px; border-radius: 50%; border: 0; cursor: pointer;
+  background: #fff; color: var(--btn-text); display: grid; place-items: center; }
+.mic-btn .icon { width: 32px; height: 32px; }
+.mic-btn--off { background: var(--surface-2); color: var(--on-ground); cursor: default; }
+.mic-btn.listening { animation: listen 1.4s ease-in-out infinite; }  /* motion.css keyframes */
+.speak__status { text-align: center; opacity: .9; font-size: var(--t-body-l); max-width: 30ch; }
+.dots { display: flex; gap: 7px; justify-content: center; }
+.dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--on-ground); opacity: .55; }
+.heard-panel { background: var(--surface-1); border-radius: var(--r-row); padding: var(--s-6);
+  text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.heard-panel .t-caps { opacity: .7; }
+.heard-word { font-size: 28px; font-weight: 800; }
+
+/* ---- Lesson menu (Phase 4b): rows inside the bottom sheet ----------------- */
+.menu { display: flex; flex-direction: column; }
+.menu__item {
+  display: flex; align-items: center; gap: var(--s-6);
+  width: 100%; min-height: 56px; padding: 0 var(--s-2);
+  border: 0; background: none; cursor: pointer; text-align: left;
+  font-size: var(--t-body-l); font-weight: 600; color: var(--sheet-ink);
+  border-radius: var(--r-field);
+}
+.menu__item + .menu__item { border-top: 1px solid var(--sheet-line); }
+.menu__item .icon { width: 22px; height: 22px; color: var(--sheet-muted); flex: none; }
+.menu__item--danger { color: var(--destructive); }
+.menu__item--danger .icon { color: var(--destructive); }
+.menu__item:disabled { opacity: .4; cursor: default; }
+
+/* ---- Merge sheet + Split screen (Phase 4c) ------------------------------- */
+.merge-list { display: flex; flex-direction: column; gap: var(--s-3); max-height: 46vh; overflow: auto; }
+.merge-opt {
+  display: flex; align-items: center; gap: var(--s-5);
+  width: 100%; padding: var(--s-5) var(--s-6); border: 0; cursor: pointer; text-align: left;
+  background: var(--sheet-field); border-radius: var(--r-field); color: var(--sheet-ink);
+  box-shadow: inset 0 0 0 1px var(--sheet-line);
+}
+.merge-opt.is-sel { box-shadow: inset 0 0 0 2px var(--btn-text); }
+.merge-opt__radio { width: 22px; height: 22px; flex: none; border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--sheet-line); position: relative; }
+.merge-opt.is-sel .merge-opt__radio { box-shadow: inset 0 0 0 2px var(--btn-text); }
+.merge-opt.is-sel .merge-opt__radio::after { content: ""; position: absolute; inset: 5px;
+  border-radius: 50%; background: var(--btn-text); }
+.merge-opt__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.merge-opt .row__meta { color: var(--sheet-muted); }
+
+.split-div { display: flex; align-items: center; gap: 8px; justify-content: center;
+  color: var(--on-ground); font-weight: 700; font-size: var(--t-label);
+  padding: var(--s-4) 0; margin: var(--s-2) 0;
+  border-top: 2px dashed var(--track); }
+.split-div .icon { color: var(--on-ground); }
+.screen .list .row[disabled] { opacity: .6; }
+
+/* ---- Word editing (Phase 4d) -------------------------------------------- */
+.words-head { display: flex; align-items: center; justify-content: space-between;
+  margin: var(--s-6) 0 var(--s-3); }
+.words-head .chip { cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+  background: #fff; color: var(--btn-text); }
+.word-list { display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-4); }
+.word-row { display: flex; align-items: center; gap: var(--s-4);
+  background: var(--surface-1); border-radius: var(--r-field); padding: var(--s-4) var(--s-5); }
+.word-row__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.word-row__es { font-weight: 700; }
+.word-row__en { font-size: 13px; opacity: .78; }
+.word-row__flag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--on-ground); background: var(--surface-2); border-radius: var(--r-pill); padding: 2px 8px; }
+.word-row__edit { border: 0; background: none; cursor: pointer; color: var(--on-ground); opacity: .8;
+  width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+.word-row__edit .icon { width: 20px; height: 20px; }
+
+/* Sheet form bits */
+.field-label { display: block; font-size: var(--t-caps); font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--sheet-muted); margin: var(--s-4) 0 var(--s-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips .chip--rm { background: var(--sheet-field); color: var(--sheet-ink); border: 0; cursor: pointer;
+  display: inline-flex; align-items: center; height: 30px; padding: 0 var(--s-5); border-radius: var(--r-pill);
+  font-size: 13px; font-weight: 600; }
+.chip-add { display: inline-flex; align-items: center; gap: 4px; }
+.chip-add__in { height: 30px; width: 90px; border: 1px solid var(--sheet-line); border-radius: var(--r-pill);
+  padding: 0 var(--s-4); background: #fff; color: var(--sheet-ink); font: inherit; font-size: 13px; }
+.chip-add button { height: 30px; border: 0; background: var(--sheet-field); color: var(--btn-text);
+  border-radius: var(--r-pill); padding: 0 var(--s-5); font-weight: 700; cursor: pointer; font-size: 13px; }
+.segmented.seg3 { display: flex; width: 100%; }
+.segmented.seg3 button { flex: 1; font-size: 13px; padding: 10px 6px; }
+
+/* ---- Me profile avatar (Phase 5a) --------------------------------------- */
+.avatar { width: 52px; height: 52px; flex: none; border-radius: 50%;
+  background: #fff; color: var(--btn-text); display: grid; place-items: center;
+  font-weight: 800; font-size: 22px; }
+
+/* ---- Install guide (Phase 5b) ------------------------------------------- */
+.install-steps { display: flex; flex-direction: column; gap: var(--s-4); margin: var(--s-5) 0 var(--s-2); }
+.install-step { display: flex; align-items: center; gap: var(--s-5); color: var(--sheet-ink);
+  font-size: var(--t-body-l); font-weight: 600; }
+.install-step .icon { color: var(--btn-text); }
+.install-num { width: 28px; height: 28px; flex: none; border-radius: 50%;
+  background: var(--sheet-field); color: var(--btn-text); display: grid; place-items: center;
+  font-weight: 800; font-size: 14px; }
+
+/* ---- Emulation "Viewing as" bar (Phase 5d, board 16 E4) ------------------ */
+.emu-bar { position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: var(--col-max); z-index: 50;
+  display: flex; align-items: center; gap: var(--s-4);
+  padding: max(10px, env(safe-area-inset-top)) var(--pad-x) 10px;
+  background: #fff; color: var(--sheet-ink);
+  box-shadow: 0 4px 14px rgba(4,16,36,.22); }
+.emu-bar .icon { color: var(--btn-text); flex: none; }
+.emu-bar__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.emu-bar__txt b { font-size: 14px; font-weight: 800; }
+.emu-bar__txt span { font-size: 12px; color: var(--sheet-muted); }
+.emu-bar__btn { border: 0; cursor: pointer; border-radius: var(--r-pill); font-weight: 700;
+  font-size: 13px; padding: 7px 14px; background: var(--sheet-field); color: var(--btn-text); flex: none; }
+.emu-bar__btn--x { background: var(--btn-text); color: #fff; }
+.app.emulating .screen { padding-top: calc(var(--top) + 54px); }
+.app.emulating .tabbar { z-index: 20; }

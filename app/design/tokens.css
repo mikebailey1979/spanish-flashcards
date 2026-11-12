@@ -1,0 +1,68 @@
+/* Aliyah's Flashcards — design tokens. Plain CSS custom properties; no build step.
+   Light is the default. Dark follows the iPhone unless data-theme is set on <html>. */
+:root{
+  /* color */
+  --ground:#2273C4;            /* question, home, lists. white on it = 4.86:1 */
+  --ground-lift:#3380D0;       /* lightest the drifting patch may reach (white 4.09, large text only) */
+  --correct:#127A4A;           /* white on it = 5.37 */
+  --notquite:#FF9CB4;          /* text on it MUST be --ink-on-notquite (white = 1.97, fails) */
+  --ink-on-notquite:#4A0F28;   /* 7.67 on --notquite */
+  --on-ground:#FFFFFF;
+  --btn-text:#1A5FAE;          /* text on white buttons, 6.38 */
+  --btn-text-ok:#127A4A;       /* text on the white Next button over green */
+  --btn-text-no:#4A0F28;       /* text on the white Next button over pink */
+  --mark-notquite:#C2335F;     /* X inside the white circle, 5.34 on white */
+  --destructive:#B02A57;       /* delete only; never the answer pink. 6.34 on white */
+  --sheet-bg:#FFFFFF; --sheet-ink:#12263F; --sheet-muted:#44546B; --sheet-field:#F4F8FD; --sheet-line:#E6ECF4;
+  --surface-1:rgba(255,255,255,.14);  /* rows, panels */
+  --surface-2:rgba(255,255,255,.18);  /* secondary buttons, tool buttons */
+  --track:rgba(255,255,255,.28);      /* progress track */
+  --scrim:rgba(6,20,40,.45);
+  --drift-a:rgba(96,166,240,.5); --drift-b:rgba(14,70,140,.42);
+  --confetti-1:#BFF5D6; --confetti-2:#8FE3B5; --confetti-3:#FFE08A; --confetti-4:#FFFFFF;
+  --glow-ok:rgba(190,255,215,.42); --glow-no:rgba(255,255,255,.6);
+
+  /* type: Sora 400/600/700/800, self-hosted WOFF2, Latin subset + áéíóúñü¿¡ */
+  --font:'Sora',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --t-word:clamp(44px,14.5vw,64px);  /* study prompt, weight 800, tracking -.04em */
+  --t-hero:clamp(72px,21.5vw,96px);  /* big numbers, weight 800, tracking -.06em */
+  --t-h1:30px; --t-title:22px; --t-body-l:17px; --t-body:14.5px; --t-label:12.5px; --t-caps:11px; /* caps: 700, tracking .14em, uppercase */
+
+  /* space (4-point base) and shape */
+  --s-1:4px; --s-2:6px; --s-3:8px; --s-4:10px; --s-5:12px; --s-6:14px; --s-7:16px; --s-8:18px; --s-9:20px; --s-10:24px; --s-11:30px;
+  --pad-x:18px;
+  --top:max(28px,calc(env(safe-area-inset-top) + 10px));   /* 54 on a Dynamic Island phone, about 28 on a home-button phone */
+  --bottom:max(16px,env(safe-area-inset-bottom));
+  --r-key:7px; --r-field:14px; --r-row:20px; --r-panel:26px; --r-card:30px; --r-pill:99px;
+  --tap:44px; --btn-h:56px; --opt-h:62px; --field-h:64px; --tabbar-h:88px;
+  --col-max:480px;  /* content column stops growing here; centered above */
+
+  /* photo sign-in / not-on-list screens (logged-out only; everything else keeps --ground) */
+  --photo-ground:#04102A;            /* navy behind the photo (spec) + the lock glyph */
+  --photo-surround:#010E29;          /* wide-screen side fill; averaged from the sign-in photo's deep-navy edge columns */
+  --photo-scrim:linear-gradient(180deg,rgba(3,10,26,0) 0%,rgba(3,10,26,0) 50%,rgba(3,10,26,.40) 62%,rgba(3,10,26,.66) 74%,rgba(3,10,26,.82) 100%);
+  --t-photo:400ms ease;              /* sharp-photo crossfade + ground dissolve */
+  --t-fade:250ms ease;              /* content-layer crossfade */
+
+  /* motion (see motion.css) */
+  --m-fade:250ms; --m-bar:500ms; --m-pop:600ms; --m-wobble:600ms; --m-confetti:1500ms;
+  --m-pulse-ok:2600ms; --m-pulse-no:1700ms; --m-drift:44s; --m-sheet:300ms;
+  --ease-confetti:cubic-bezier(.2,.7,.3,1);
+}
+/* dark: deeper grounds; Not quite becomes crimson so text stays white (no color flip) */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#081A33; --ground-lift:#0F2A50; --correct:#063D26; --notquite:#6E1A2C; --ink-on-notquite:#FFFFFF;
+  --btn-text:#081A33; --btn-text-ok:#063D26; --btn-text-no:#6E1A2C; --mark-notquite:#B8283F;
+  --sheet-bg:#17263B; --sheet-ink:#EAF1FA; --sheet-muted:#9FB1C9; --sheet-field:#1F3149; --sheet-line:#2A3C55;
+  --surface-1:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.14);
+  --drift-a:rgba(50,100,170,.2); --drift-b:rgba(4,16,36,.5);
+  --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,130,140,.24);
+}}
+:root[data-theme="dark"]{
+  --ground:#081A33; --ground-lift:#0F2A50; --correct:#063D26; --notquite:#6E1A2C; --ink-on-notquite:#FFFFFF;
+  --btn-text:#081A33; --btn-text-ok:#063D26; --btn-text-no:#6E1A2C; --mark-notquite:#B8283F;
+  --sheet-bg:#17263B; --sheet-ink:#EAF1FA; --sheet-muted:#9FB1C9; --sheet-field:#1F3149; --sheet-line:#2A3C55;
+  --surface-1:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.14);
+  --drift-a:rgba(50,100,170,.2); --drift-b:rgba(4,16,36,.5);
+  --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,130,140,.24);
+}
