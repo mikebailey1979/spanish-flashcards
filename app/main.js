@@ -1259,10 +1259,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       </section>`);
     };
     if (typeof navigator !== "undefined" && navigator.onLine === false) return renderCapOffline();
+    const importFn = captureProposer();
+    if (!importFn) return renderCapPending();
     paint(0);
     let step = 0;
     const tick = setInterval(() => { step = Math.min(step + 1, CAP_STEPS.length - 1); paint(step); }, 500);
-    mockImportFromPhoto(capture ? capture.pages : [], capture && capture.mode)
+    importFn()
       .then((proposal) => {
         clearInterval(tick);
         if (proposal && proposal.unreadablePages && proposal.unreadablePages.length) { capture.proposal = proposal; return renderCapUnreadable(proposal.unreadablePages); }
@@ -1559,6 +1561,30 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="btn btn--primary" data-act="cap-retake">Retake the pages</button>
         <button class="btn btn--secondary" data-act="cap-skip-bad" data-bad="${bad.join(",")}">Skip ${bad.length === 1 ? "that page" : "those pages"} · read the rest</button>
       </div>
+    </section>${tabbar("add")}`);
+  }
+
+  // Choose the proposer: the real Claude-vision function when AI is enabled, else
+  // the dev mock on localhost, else a "being set up" state on prod (null).
+  function aiReady() { return !!(self.AliyahConfig && self.AliyahConfig.ai && self.AliyahConfig.ai.enabled); }
+  function captureProposer() {
+    if (aiReady() && self.SpanishFlashcardsAiAdapter) {
+      const adapter = self.SpanishFlashcardsAiAdapter.createFunctionAiAdapter({
+        endpoint: self.AliyahConfig.ai.endpoint,
+        getAccessToken: () => (_auth ? _auth.getAccessToken() : null),
+      });
+      return () => adapter.importFromPhoto((capture ? capture.pages : []).map((p) => p.dataUrl), {});
+    }
+    const onProd = /(^|\.)aliyahsflashcards\.(com|netlify\.app)$/.test(location.hostname);
+    if (onProd && !(capture && capture.mode)) return null;   // prod, AI not switched on yet → pending
+    return () => mockImportFromPhoto(capture ? capture.pages : [], capture && capture.mode);
+  }
+  function renderCapPending() {
+    mount(`<section class="screen screen--tabbed">
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
+      <h1 class="t-h1">Photo reading is almost ready</h1>
+      <div class="placeholder" style="margin-top:var(--s-5)">${icon("camera")}<div class="t-title">Being set up</div><div class="muted">The photo-to-flashcards reader is being switched on. Your pages are safe on this phone.</div></div>
+      <button class="btn btn--primary" data-act="cap-cancel" style="margin-top:var(--s-5)">Back to home</button>
     </section>${tabbar("add")}`);
   }
 

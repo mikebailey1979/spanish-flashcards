@@ -17,5 +17,11 @@
   var host = (root.location && root.location.hostname) || "";
   var onProdHost = /(^|\.)aliyahsflashcards\.(com|netlify\.app)$/.test(host);
   var keyLooksReal = typeof PROD.anonKey === "string" && PROD.anonKey.split(".").length === 3;
-  root.AliyahConfig = { backend: onProdHost && keyLooksReal ? PROD : null };
+  root.AliyahConfig = {
+    backend: onProdHost && keyLooksReal ? PROD : null,
+    // Photo OCR via the Claude-vision Netlify Function. `enabled` is flipped to true
+    // once the ANTHROPIC_API_KEY is set in Netlify; until then prod shows a "being set
+    // up" state and localhost uses the dev mock.
+    ai: { enabled: false, endpoint: "/.netlify/functions/ai" },
+  };
 })(typeof self !== "undefined" ? self : this);
