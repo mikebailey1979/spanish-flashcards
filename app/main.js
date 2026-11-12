@@ -1265,20 +1265,118 @@ document.addEventListener("DOMContentLoaded", async () => {
       .catch(() => { clearInterval(tick); renderCaptureProblem(); });
   }
 
-  // 6a bridge summary — replaced by the C3 segmentation review in 6b.
+  // C3 — segmentation review: rename / split / merge the proposed lessons.
+  //  Operates on the in-memory proposal; nothing is saved until the word review
+  //  (C4, 6c) commits via io.importLesson. "Review the words" bridges to 6c.
+  const propWords = (l) => l.sections.reduce((b, s) => b + s.words.length, 0);
+  function propPagesLabel(l) {
+    const p = l.pages || []; if (!p.length) return "";
+    const lo = Math.min(...p), hi = Math.max(...p);
+    return lo === hi ? `Page ${lo}` : `Pages ${lo}–${hi}`;
+  }
   function renderCaptureFound() {
     const lessons = (capture.proposal && capture.proposal.lessons) || [];
-    const words = lessons.reduce((a, l) => a + l.sections.reduce((b, s) => b + s.words.length, 0), 0);
-    const rows = lessons.map((l) => {
-      const w = l.sections.reduce((b, s) => b + s.words.length, 0);
-      return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title">${esc(l.name)}</span><span class="row__meta">${w} words · pages ${l.pages.join(", ")}</span></span></div>`;
+    const card = (l, i) => {
+      const w = propWords(l);
+      const chips = l.sections.slice(0, 3).map((s) => `<span class="chip" style="pointer-events:none">${esc(s.cat)} · ${s.words.length}</span>`).join("")
+        + (l.sections.length > 3 ? `<span class="chip" style="pointer-events:none">+${l.sections.length - 3} more</span>` : "");
+      return `<div style="background:rgba(128,128,128,.12);border-radius:var(--s-4);padding:var(--s-5);margin-bottom:var(--s-3)">
+        <div style="display:flex;align-items:center;gap:var(--s-3)">
+          <span class="t-title" style="flex:1;-webkit-line-clamp:2">${esc(l.name)}</span>
+          <button data-act="seg-rename" data-i="${i}" aria-label="Rename lesson" style="border:0;background:transparent;color:inherit;cursor:pointer;opacity:.7">${icon("edit", "icon--sm")}</button>
+        </div>
+        <div class="muted" style="font-size:var(--t-label);margin-top:4px">${propPagesLabel(l)} · ${w} word${w === 1 ? "" : "s"}</div>
+        <div class="chips" style="margin-top:var(--s-3)">${chips}</div>
+        ${l.sections.length >= 2 ? `<button class="link" data-act="seg-split" data-i="${i}" style="margin-top:var(--s-3)">${icon("split", "icon--sm")} Split this lesson</button>` : ""}
+      </div>`;
+    };
+    const body = lessons.map((l, i) => {
+      const merge = i < lessons.length - 1
+        ? `<button class="row" data-act="seg-merge" data-i="${i}" style="justify-content:center;margin-bottom:var(--s-3)"><span class="row__title">${icon("merge", "icon--sm")} Merge into one lesson</span></button>`
+        : "";
+      return card(l, i) + merge;
     }).join("");
     mount(`<section class="screen screen--tabbed">
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 3 of 4 · Check the lessons</div>
       <h1 class="t-h1">We found ${lessons.length} lesson${lessons.length === 1 ? "" : "s"}</h1>
-      <p class="muted" style="margin-top:var(--s-2)">${words} words across ${capture.pages.length} page${capture.pages.length === 1 ? "" : "s"}. Rename, split &amp; merge come next (6b), then word-by-word review before anything is saved.</p>
-      <div class="list" style="margin-top:var(--s-4)">${rows}</div>
-      <button class="btn btn--primary" data-act="cap-cancel" style="margin-top:var(--s-6)">Back to home</button>
+      <p class="muted" style="margin-top:var(--s-2)">Does this match your homework? Rename, split, or merge. Nothing is saved yet.</p>
+      <div style="margin-top:var(--s-5)">${body}</div>
+      <button class="btn btn--primary" data-act="seg-review" style="margin-top:var(--s-4)">Review the words</button>
+      <button class="btn btn--secondary" data-act="cap-cancel">Cancel</button>
+    </section>${tabbar("add")}`);
+  }
+
+  function openSegRename(i) {
+    const l = capture.proposal.lessons[i]; if (!l) return; const max = 80;
+    sheet(`<div class="sheet__title">Rename lesson</div>
+      <input id="seg-rename-field" class="field" maxlength="${max}" value="${esc(l.name)}" aria-label="Lesson name">
+      <button class="btn btn--primary" data-act="seg-rename-save" data-i="${i}">Save</button>
+      <button class="btn btn--secondary" data-act="close-sheet">Cancel</button>`);
+    const f = document.getElementById("seg-rename-field");
+    if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+  }
+  function doSegRename(i) {
+    const f = document.getElementById("seg-rename-field"); const name = (f ? f.value : "").trim();
+    if (!name) { if (f) f.focus(); return; }
+    if (capture.proposal.lessons[i]) capture.proposal.lessons[i].name = name;
+    closeSheet(); renderCaptureFound();
+  }
+  function segMerge(i) {
+    const ls = capture.proposal.lessons; const a = ls[i], b = ls[i + 1]; if (!a || !b) return;
+    const map = new Map();
+    for (const s of a.sections.concat(b.sections)) {
+      if (!map.has(s.cat)) map.set(s.cat, { cat: s.cat, words: [] });
+      map.get(s.cat).words.push(...s.words);
+    }
+    a.sections = [...map.values()];
+    a.pages = [...new Set([...(a.pages || []), ...(b.pages || [])])].sort((x, y) => x - y);
+    ls.splice(i + 1, 1);
+  }
+
+  let segSplitState = null;
+  function renderSegSplit(i) {
+    const l = capture.proposal.lessons[i]; if (!l || l.sections.length < 2) return renderCaptureFound();
+    if (!segSplitState || segSplitState.i !== i) segSplitState = { i, cut: 1 };
+    if (segSplitState.cut < 1 || segSplitState.cut >= l.sections.length) segSplitState.cut = 1;
+    const firstN = l.sections.slice(0, segSplitState.cut).reduce((a, s) => a + s.words.length, 0);
+    const secondN = propWords(l) - firstN;
+    const rows = l.sections.map((s, idx) => {
+      const divider = idx === segSplitState.cut ? `<div class="split-div">${icon("split", "icon--sm")} Second lesson starts here</div>` : "";
+      return `${divider}<button class="row" data-act="seg-split-at" data-i="${idx}" ${idx === 0 ? "disabled" : ""}>
+        <span class="row__main"><span class="row__title">${esc(s.cat)}</span><span class="row__meta">${s.words.length} word${s.words.length === 1 ? "" : "s"}</span></span></button>`;
+    }).join("");
+    mount(`<section class="screen">
+      <div class="study-head__row" style="margin-bottom:var(--s-5)">
+        <button class="study-head__exit" data-act="seg-back">${icon("back")}</button>
+        <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Split lesson</span></div>
+      <div class="muted" style="margin-bottom:var(--s-5)">Tap a section to start the second lesson there.</div>
+      <div class="list">${rows}</div>
+      <div style="display:flex;gap:var(--s-4);margin-top:var(--s-6)">
+        <div class="hero" style="flex:1;padding:var(--s-6);gap:4px"><div class="t-title">${firstN}</div><div class="t-label" style="opacity:.75">first lesson</div></div>
+        <div class="hero" style="flex:1;padding:var(--s-6);gap:4px"><div class="t-title">${secondN}</div><div class="t-label" style="opacity:.75">second lesson</div></div></div>
+      <button class="btn btn--primary" data-act="seg-split-confirm" style="margin-top:var(--s-7)">Split into two</button>
+      <button class="btn btn--secondary" data-act="seg-back">Cancel</button>
+    </section>`);
+  }
+  function segSplitAt(idx) { if (segSplitState) { segSplitState.cut = Number(idx); renderSegSplit(segSplitState.i); } }
+  function doSegSplit() {
+    if (!segSplitState) return renderCaptureFound();
+    const { i, cut } = segSplitState; const ls = capture.proposal.lessons; const l = ls[i]; if (!l) return renderCaptureFound();
+    const moved = l.sections.splice(cut);
+    const secondName = (moved[0] && moved[0].cat) ? moved[0].cat : l.name + " (2)";
+    ls.splice(i + 1, 0, { name: secondName, pages: (l.pages || []).slice(), sections: moved });
+    segSplitState = null; renderCaptureFound();
+  }
+
+  // 6c bridge — the word-by-word HITL review (C4/H3) + import commit land here next.
+  function renderSegReviewStub() {
+    const n = (capture.proposal && capture.proposal.lessons.length) || 0;
+    mount(`<section class="screen screen--tabbed">
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 4 of 4 · Check the words</div>
+      <h1 class="t-h1">Word review is next</h1>
+      <p class="muted" style="margin-top:var(--s-2)">${n} lesson${n === 1 ? "" : "s"} ready. The word-by-word review — keep or untick words, fix low-confidence ones, skip duplicates — and saving into your lessons land in 6c.</p>
+      <button class="btn btn--secondary" data-act="seg-back" style="margin-top:var(--s-6)">Back to the lessons</button>
+      <button class="btn btn--primary" data-act="cap-cancel">Back to home</button>
     </section>${tabbar("add")}`);
   }
 
@@ -1302,8 +1400,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         { name: "Las frutas — Fruits", pages: [1], sections: [
           { cat: "Fruits", words: [
             { front: "la manzana", back: "apple" },
-            { front: "la fresa", back: "strawberry", confidence: "low" },
             { front: "el plátano", back: "banana" },
+          ] },
+          { cat: "Berries", words: [
+            { front: "la fresa", back: "strawberry", confidence: "low" },
             { front: "la sandía", back: "watermelon", duplicate: true },
           ] } ] },
         { name: "La comida callejera — Street food", pages: np > 1 ? [2, Math.min(np, 3)] : [1], sections: [
@@ -1447,6 +1547,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "cap-remove") { if (capture) { capture.pages = capture.pages.filter((p) => p.id !== id); renderCapture(); } }
     else if (act === "cap-read") renderReading();
     else if (act === "cap-cancel") { capture = null; renderHome(); }
+    else if (act === "seg-rename") openSegRename(Number(t.dataset.i));
+    else if (act === "seg-rename-save") doSegRename(Number(t.dataset.i));
+    else if (act === "seg-split") renderSegSplit(Number(t.dataset.i));
+    else if (act === "seg-split-at") segSplitAt(t.dataset.i);
+    else if (act === "seg-split-confirm") doSegSplit();
+    else if (act === "seg-merge") { segMerge(Number(t.dataset.i)); renderCaptureFound(); }
+    else if (act === "seg-back") renderCaptureFound();
+    else if (act === "seg-review") renderSegReviewStub();
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
     else if (act === "idk") idk();
