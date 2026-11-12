@@ -82,7 +82,7 @@ async function importFromPhoto(images) {
 
   const client = new Anthropic(); // reads ANTHROPIC_API_KEY from the environment
   const resp = await client.messages.create({
-    model: "claude-opus-5-5",
+    model: "claude-sonnet-5-5",
     max_tokens: 16000,
     thinking: { type: "adaptive" },
     messages: [{ role: "user", content: [...blocks, { type: "text", text: PROMPT }] }],

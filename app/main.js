@@ -1203,11 +1203,35 @@ document.addEventListener("DOMContentLoaded", async () => {
   function readFileDataUrl(file) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
   }
+  // Downscale on add: shrinks OCR input tokens/cost and keeps requests under Netlify's
+  // payload limit. Photos live only in memory for the import — never stored.
+  function downscaleImage(file, maxDim, quality) {
+    maxDim = maxDim || 1600; quality = quality || 0.85;
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch (e) { URL.revokeObjectURL(url); reject(e); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("image load failed")); };
+      img.src = url;
+    });
+  }
   async function capAddFiles(fileList) {
     if (!capture) capture = { pages: [], proposal: null };
     for (const f of Array.from(fileList || [])) {
       if (!/^image\//.test(f.type || "")) continue;
-      try { capture.pages.push({ id: "pg" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl: await readFileDataUrl(f) }); } catch {}
+      let dataUrl = null;
+      try { dataUrl = await downscaleImage(f); } catch { try { dataUrl = await readFileDataUrl(f); } catch {} }
+      if (dataUrl) capture.pages.push({ id: "pg" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl });
     }
     renderCapture();
   }
@@ -1964,6 +1988,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   authGate();
   // console poking (getters: user/ctx are reassigned on sign-in)
   window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync,
-    cap: { start: startCapture, reading: renderReading, firstrun: renderFirstRun, offline: renderCapOffline,
+    cap: { start: startCapture, reading: renderReading, firstrun: renderFirstRun, offline: renderCapOffline, downscale: downscaleImage,
       seed(n, mode) { capture = { pages: Array.from({ length: n || 3 }, (_, i) => ({ id: "pg" + i, dataUrl: "" })), proposal: null, mode }; renderReading(); } } };
 });
