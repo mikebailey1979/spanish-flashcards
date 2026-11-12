@@ -22,6 +22,6 @@
     // Photo OCR via the Claude-vision Netlify Function. `enabled` is flipped to true
     // once the ANTHROPIC_API_KEY is set in Netlify; until then prod shows a "being set
     // up" state and localhost uses the dev mock.
-    ai: { enabled: false, endpoint: "/.netlify/functions/ai" },
+    ai: { enabled: true, endpoint: "/.netlify/functions/ai" },
   };
 })(typeof self !== "undefined" ? self : this);
