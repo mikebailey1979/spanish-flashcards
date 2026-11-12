@@ -127,6 +127,43 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (editWordState) editWordState.back = text;
     if (en) en.value = text;
   }
+  // Flag adjudication (R1): "that should've counted" → Claude rules → you confirm.
+  let adjState = null;
+  function mockAdjudicate(card, typed) {
+    const ok = /casa|amig|biblioteca|gust/i.test(typed || "");
+    return new Promise((r) => setTimeout(() => r(ok
+      ? { verdict: "accept", reason: `Yes — “${typed}” means the same thing, so it should count.` }
+      : { verdict: "reject", reason: `“${typed}” means something a little different — the answer is “${(card && card.back) || ""}”.` }), 700));
+  }
+  async function openAdjudicate(card, typed, dir) {
+    if (!card || !typed) return;
+    adjState = { card, typed };
+    sheet(`<div class="sheet__title">Should that count?</div>
+      <div id="adj-body" class="sheet__text" style="min-height:64px;display:flex;align-items:center;gap:var(--s-3)"><span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Checking “${esc(typed)}”…</div>
+      <div id="adj-actions"></div>
+      <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
+    let r = null; const ad = aiAdapter();
+    try { r = ad ? await ad.adjudicateAnswer(card, typed, dir || "es-en") : await mockAdjudicate(card, typed); } catch { r = null; }
+    const body = document.getElementById("adj-body"), actions = document.getElementById("adj-actions");
+    if (!body) return;
+    body.style.display = "block";
+    if (!r) { body.textContent = "Couldn’t check that just now — try again in a moment."; return; }
+    body.textContent = r.reason || (r.verdict === "accept" ? "That should count." : "That doesn’t quite count.");
+    if (actions && r.verdict === "accept") actions.innerHTML = `<button class="btn btn--primary" data-act="adj-accept" style="margin-top:var(--s-3)">Count “${esc(typed)}” from now on</button>`;
+  }
+  async function doAdjAccept() {
+    if (!adjState) return;
+    const { card, typed } = adjState;
+    try {
+      const next = Array.from(new Set([...(card.accepts || []), typed]));
+      await store.editCard(card.id, { accepts: next }, now());
+      card.accepts = next;
+      await refreshContent();
+    } catch {}
+    const body = document.getElementById("adj-body"), actions = document.getElementById("adj-actions");
+    if (body) body.textContent = `Done — “${typed}” will count from now on.`;
+    if (actions) actions.innerHTML = "";
+  }
 
   // ---- direction, mode + bidirectional grading (Phase 3) -------------------
   const DIRS = ["es-en", "en-es"];
@@ -649,7 +686,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       markIcon = `<i class="mark__icon icon--close"></i>`;
       cheer = "¡Ánimo! You've got this."; sub = "";
       chip = `<span class="chip">We'll practice it again</span>${(S.mode === "choice" && S.typed) ? `<span class="chip">You picked: ${esc(S.typed)}</span>` : ""}`;
-      link = `<div class="linkrow"><a data-act="noop">That should've counted</a> · <a data-act="explain">Explain</a></div>`;
+      link = `<div class="linkrow"><a data-act="adjudicate">That should've counted</a> · <a data-act="explain">Explain</a></div>`;
       nextLabel = "Next";
     }
     const toolRow = S.idk ? "" : `<div class="toolrow" style="margin-bottom:var(--s-5)">
@@ -1875,6 +1912,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "speak") speak(t.dataset.say);
     else if (act === "explain") openExplain(S.current, S.typed, S.dir);
     else if (act === "example") openExample(S.current);
+    else if (act === "adjudicate") openAdjudicate(S.current, S.typed, S.dir);
+    else if (act === "adj-accept") doAdjAccept();
     else if (act === "word-suggest-en") wordSuggestEn();
     else if (act === "open-rating") openRating();
     else if (act === "rate") rate(t.dataset.val);
@@ -2061,7 +2100,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", authGate);
   authGate();
   // console poking (getters: user/ctx are reassigned on sign-in)
-  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync, explain: openExplain, example: openExample,
+  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync, explain: openExplain, example: openExample, adjudicate: openAdjudicate,
     cap: { start: startCapture, reading: renderReading, firstrun: renderFirstRun, offline: renderCapOffline, downscale: downscaleImage,
       seed(n, mode) { capture = { pages: Array.from({ length: n || 3 }, (_, i) => ({ id: "pg" + i, dataUrl: "" })), proposal: null, mode }; renderReading(); } } };
 });

@@ -135,6 +135,19 @@ async function suggestTranslation(spanish) {
   return { text };
 }
 
+// Flag adjudication (R1): rule on a "that should've counted" dispute.
+async function adjudicateAnswer(card, typed, dir) {
+  const front = (card && card.front) || "", back = (card && card.back) || "";
+  const target = dir === "en-es" ? front : back;
+  const lang = dir === "en-es" ? "Spanish" : "English";
+  const prompt = `A Spanish student was asked for the ${lang} answer "${target}" on this flashcard: Spanish "${front}" = English "${back}". She wrote "${typed}" and it was marked wrong. Judge fairly but accurately, like a Spanish teacher: is "${typed}" actually a correct / acceptable answer (same meaning — a valid synonym, alternate spelling, or regional variant), ignoring accents and capitalization? Return ONLY JSON: {"verdict":"accept"|"reject","reason":"<one short, friendly sentence to the student>"}. Use "accept" only if it genuinely means the same thing.`;
+  const client = new Anthropic();
+  const resp = await client.messages.create({ model: "claude-sonnet-5-5", max_tokens: 300, messages: [{ role: "user", content: prompt }] });
+  const text = resp.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  const s = text.indexOf("{"), e = text.lastIndexOf("}");
+  try { const j = JSON.parse(s >= 0 && e > s ? text.slice(s, e + 1) : text); return { verdict: j.verdict === "accept" ? "accept" : "reject", reason: j.reason || "" }; } catch { return { verdict: "reject", reason: "" }; }
+}
+
 export const handler = async (event) => {
   const headers = { "Content-Type": "application/json" };
   try {
@@ -160,6 +173,10 @@ export const handler = async (event) => {
     }
     if (op === "suggestTranslation") {
       const r = await suggestTranslation(args[0]);
+      return { statusCode: 200, headers, body: JSON.stringify(r) };
+    }
+    if (op === "adjudicateAnswer") {
+      const r = await adjudicateAnswer(args[0], args[1], args[2]);
       return { statusCode: 200, headers, body: JSON.stringify(r) };
     }
     return { statusCode: 404, headers, body: JSON.stringify({ error: "unknown op: " + op }) };
