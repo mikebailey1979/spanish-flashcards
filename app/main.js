@@ -99,6 +99,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     const body = document.getElementById("explain-body");
     if (body) { body.style.display = "block"; body.textContent = text || "Couldn’t load an explanation just now — check your connection and try again."; }
   }
+  // Example sentence (R1): comprehensible-input example in a sheet, with a speaker.
+  function mockEnrich(card) {
+    return new Promise((res) => setTimeout(() => res({ es: `Me gusta ${(card && card.front) || "eso"}.`, en: `I like ${(card && card.back) || "that"}.` }), 700));
+  }
+  async function openExample(card) {
+    if (!card) return;
+    sheet(`<div class="sheet__title">Example</div>
+      <div id="ex-body" class="sheet__text" style="min-height:64px;display:flex;align-items:center;gap:var(--s-3)"><span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Writing one…</div>
+      <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
+    let r = null; const ad = aiAdapter();
+    try { r = ad ? await ad.enrichCard(card) : await mockEnrich(card); } catch { r = null; }
+    const body = document.getElementById("ex-body");
+    if (!body) return;
+    if (r && r.es) body.outerHTML = `<div class="sheet__text"><div class="t-title" style="margin-bottom:4px">${esc(r.es)} <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(r.es)}" aria-label="Hear it" style="vertical-align:middle">${icon("speaker", "icon--sm")}</button></div><div class="muted">${esc(r.en || "")}</div></div>`;
+    else { body.style.display = "block"; body.textContent = "Couldn’t write an example just now — try again in a moment."; }
+  }
+  // Translate-suggest (R1): fill a blank English field when adding a word.
+  function mockSuggest(es) { return new Promise((r) => setTimeout(() => r({ text: es.replace(/^(el|la|los|las)\s+/i, "") + " (suggested)" }), 500)); }
+  async function wordSuggestEn() {
+    syncWordFields();
+    const es = ((editWordState && editWordState.front) || "").trim();
+    if (!es) { const f = document.getElementById("ew-es"); if (f) f.focus(); return; }
+    const en = document.getElementById("ew-en"); if (en) en.value = "…";
+    let text = ""; const ad = aiAdapter();
+    try { const r = ad ? await ad.suggestTranslation(es) : await mockSuggest(es); text = (r && r.text) || ""; } catch {}
+    if (editWordState) editWordState.back = text;
+    if (en) en.value = text;
+  }
 
   // ---- direction, mode + bidirectional grading (Phase 3) -------------------
   const DIRS = ["es-en", "en-es"];
@@ -627,7 +655,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const toolRow = S.idk ? "" : `<div class="toolrow" style="margin-bottom:var(--s-5)">
       <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(c.front)}" aria-label="Hear it in Spanish">${icon("speaker", "icon--sm")}</button>
       <button class="toolbtn" data-act="open-rating">${icon("face-good", "icon--sm")} How was that?</button>
-      <button class="toolbtn" data-act="explain">Explain</button></div>`;
+      <button class="toolbtn" data-act="explain">Explain</button>
+      <button class="toolbtn" data-act="example">Example</button></div>`;
     mount(`<section class="screen study ${stateClass}">
       ${studyHead()}
       <div class="result">
@@ -892,7 +921,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <input id="ew-es" class="field" value="${esc(W.front)}" placeholder="Spanish">
       <label class="field-label">ENGLISH</label>
       <input id="ew-en" class="field" value="${esc(W.back)}" placeholder="${isAdd ? "Translation" : "English"}">
-      ${isAdd ? `<div class="sheet__text" style="margin-top:4px">Not sure of the English? Leave it blank for now.</div>` : `
+      ${isAdd ? `<button class="chip" data-act="word-suggest-en" style="margin-top:6px">${icon("idea-bulb", "icon--sm")} Suggest the English</button>` : `
       <label class="field-label">ALSO ACCEPT</label>
       <div class="chips">${chips}<span class="chip-add"><input id="ew-acc" class="chip-add__in" placeholder="add" aria-label="Also accept"><button data-act="word-accept-add">+ Add</button></span></div>
       <label class="field-label">SPELLING FOR THIS WORD</label>
@@ -1845,6 +1874,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "grade-next") gradeNext();
     else if (act === "speak") speak(t.dataset.say);
     else if (act === "explain") openExplain(S.current, S.typed, S.dir);
+    else if (act === "example") openExample(S.current);
+    else if (act === "word-suggest-en") wordSuggestEn();
     else if (act === "open-rating") openRating();
     else if (act === "rate") rate(t.dataset.val);
     else if (act === "close-rating") closeRating();
@@ -2030,7 +2061,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", authGate);
   authGate();
   // console poking (getters: user/ctx are reassigned on sign-in)
-  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync, explain: openExplain,
+  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync, explain: openExplain, example: openExample,
     cap: { start: startCapture, reading: renderReading, firstrun: renderFirstRun, offline: renderCapOffline, downscale: downscaleImage,
       seed(n, mode) { capture = { pages: Array.from({ length: n || 3 }, (_, i) => ({ id: "pg" + i, dataUrl: "" })), proposal: null, mode }; renderReading(); } } };
 });

@@ -22,7 +22,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const OPERATIONS = ["importFromPhoto", "explainAnswer", "enrichCard", "assessPronunciation"];
+  const OPERATIONS = ["importFromPhoto", "explainAnswer", "enrichCard", "suggestTranslation", "assessPronunciation"];
 
   /** A placeholder adapter whose every op rejects — real impl injected at M3. */
   function createStubAiAdapter() {

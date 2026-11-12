@@ -114,6 +114,27 @@ async function explainAnswer(card, typed, dir) {
   return { text };
 }
 
+// Example sentence (R1): one short comprehensible-input sentence using the word.
+async function enrichCard(card) {
+  const front = (card && card.front) || "";
+  const back = (card && card.back) || "";
+  const prompt = `Write ONE short, simple example sentence in Spanish (about Spanish-2 level, 10 words max) that naturally uses "${front}" (${back}), then its English translation. Return ONLY JSON: {"es":"<Spanish sentence>","en":"<English translation>"}. No markdown.`;
+  const client = new Anthropic();
+  const resp = await client.messages.create({ model: "claude-sonnet-5-5", max_tokens: 300, messages: [{ role: "user", content: prompt }] });
+  const text = resp.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  const s = text.indexOf("{"), e = text.lastIndexOf("}");
+  try { const j = JSON.parse(s >= 0 && e > s ? text.slice(s, e + 1) : text); return { es: j.es || "", en: j.en || "" }; } catch { return { es: "", en: "" }; }
+}
+
+// Translation suggestion (R1): fill a blank English field when adding a word.
+async function suggestTranslation(spanish) {
+  const prompt = `Give the single most common English translation of the Spanish word or phrase "${spanish}". Return ONLY the English, no quotes, no punctuation, nothing else.`;
+  const client = new Anthropic();
+  const resp = await client.messages.create({ model: "claude-sonnet-5-5", max_tokens: 60, messages: [{ role: "user", content: prompt }] });
+  const text = resp.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim().replace(/^["']+|["'.]+$/g, "");
+  return { text };
+}
+
 export const handler = async (event) => {
   const headers = { "Content-Type": "application/json" };
   try {
@@ -131,6 +152,14 @@ export const handler = async (event) => {
     }
     if (op === "explainAnswer") {
       const r = await explainAnswer(args[0], args[1], args[2]);
+      return { statusCode: 200, headers, body: JSON.stringify(r) };
+    }
+    if (op === "enrichCard") {
+      const r = await enrichCard(args[0]);
+      return { statusCode: 200, headers, body: JSON.stringify(r) };
+    }
+    if (op === "suggestTranslation") {
+      const r = await suggestTranslation(args[0]);
       return { statusCode: 200, headers, body: JSON.stringify(r) };
     }
     return { statusCode: 404, headers, body: JSON.stringify({ error: "unknown op: " + op }) };
