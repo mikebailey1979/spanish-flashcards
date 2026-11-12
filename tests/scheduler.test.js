@@ -6,94 +6,103 @@ const srs = require("../src/srs/scheduler.js");
 const T0 = Date.UTC(2026, 0, 1, 12, 0, 0);
 const DAY = 86400000;
 const MIN = 60000;
+const approx = (a, b, eps = 1e-3) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`);
 
-test("initSrs: a new card is due immediately, box 0, unseen", () => {
+test("initSrs: new card due now, no memory yet, unseen", () => {
   const s = srs.initSrs(T0);
-  assert.equal(s.box, 0);
   assert.equal(s.reps, 0);
   assert.equal(s.lapses, 0);
-  assert.equal(s.ease, 2.5);
+  assert.equal(s.stability, null);
+  assert.equal(s.difficulty, null);
   assert.equal(Date.parse(s.dueAt), T0);
 });
 
-test("again: resets to box 0, counts a lapse, drops ease, re-due in 10 min", () => {
-  let s = srs.initSrs(T0);
-  s = srs.grade(s, "good", T0); // climb a bit first
-  s = srs.grade(s, "again", T0 + DAY);
-  assert.equal(s.box, 0);
-  assert.equal(s.lapses, 1);
-  assert.equal(s.ease, 2.3); // 2.5 - 0.2
-  assert.equal(Date.parse(s.dueAt), T0 + DAY + 10 * MIN);
-  assert.equal(s.reps, 2);
-});
-
-test("good climbs the ladder: box 0→1 is 2 days, →2 is 4 days", () => {
-  let s = srs.initSrs(T0);
-  s = srs.grade(s, "good", T0);
-  assert.equal(s.box, 1);
-  assert.equal(s.intervalDays, srs.GOOD_LADDER[1]); // 2
+test("first 'good': stability = S0(3) = w2, interval = round(S) days, reps 1", () => {
+  const s = srs.grade(srs.initSrs(T0), "good", T0);
+  assert.equal(s.reps, 1);
+  approx(s.stability, srs.WEIGHTS[2]); // 2.3065
+  assert.equal(s.intervalDays, 2); // round(2.3065)
   assert.equal(Date.parse(s.dueAt), T0 + 2 * DAY);
-  s = srs.grade(s, "good", T0 + 2 * DAY);
-  assert.equal(s.box, 2);
-  assert.equal(s.intervalDays, srs.GOOD_LADDER[2]); // 4
+  assert.ok(s.difficulty >= 1 && s.difficulty <= 10);
 });
 
-test("ease has a 1.3 floor even after many 'again's", () => {
-  let s = srs.initSrs(T0);
-  for (let i = 0; i < 12; i++) s = srs.grade(s, "again", T0 + i * DAY);
-  assert.ok(s.ease >= srs.EASE_FLOOR);
-  assert.equal(s.ease, srs.EASE_FLOOR);
-});
-
-test("easy gives a longer interval than good from the same state", () => {
+test("first 'easy' schedules further out than first 'good'", () => {
   const start = srs.initSrs(T0);
   const good = srs.grade(start, "good", T0);
   const easy = srs.grade(start, "easy", T0);
   assert.ok(easy.intervalDays > good.intervalDays, `${easy.intervalDays} > ${good.intervalDays}`);
-  assert.ok(easy.ease > good.ease); // easy bumps ease, good leaves it
+  approx(easy.stability, srs.WEIGHTS[3]); // 8.2956
 });
 
-test("hard keeps the box, nudges interval up ~1.2x, lowers ease", () => {
-  let s = srs.initSrs(T0);
-  s = srs.grade(s, "good", T0); // box1, interval 2
-  s = srs.grade(s, "good", T0); // box2, interval 4
-  const before = s.intervalDays;
-  const beforeBox = s.box;
-  s = srs.grade(s, "hard", T0);
-  assert.equal(s.box, beforeBox);
-  assert.equal(s.intervalDays, Math.max(1, Math.round(before * 1.2)));
-  assert.ok(s.ease < 2.5);
+test("'again' counts a lapse, re-dues in 10 min, never raises stability", () => {
+  let s = srs.grade(srs.initSrs(T0), "good", T0); // S ≈ 2.3065
+  const prev = s.stability;
+  s = srs.grade(s, "again", T0 + 2 * DAY);
+  assert.equal(s.lapses, 1);
+  assert.equal(Date.parse(s.dueAt), T0 + 2 * DAY + 10 * MIN);
+  assert.ok(s.stability <= prev, "lapse never increases stability");
+  assert.equal(s.reps, 2);
 });
 
-test("box caps at 5", () => {
+test("a successful review grows stability and the interval", () => {
+  const first = srs.grade(srs.initSrs(T0), "good", T0);
+  const second = srs.grade(first, "good", T0 + first.intervalDays * DAY);
+  assert.ok(second.stability > first.stability, `${second.stability} > ${first.stability}`);
+  assert.ok(second.intervalDays > first.intervalDays);
+});
+
+test("difficulty stays within [1,10] across many mixed reviews", () => {
   let s = srs.initSrs(T0);
-  for (let i = 0; i < 10; i++) s = srs.grade(s, "good", T0 + i * 100 * DAY);
-  assert.equal(s.box, 5);
+  let t = T0;
+  for (const g of ["again", "good", "hard", "good", "easy", "again", "good", "good"]) {
+    s = srs.grade(s, g, t);
+    t += (s.intervalDays || 0.01) * DAY;
+    assert.ok(s.difficulty >= 1 && s.difficulty <= 10, `difficulty ${s.difficulty}`);
+  }
+});
+
+test("retrievability: ~0.9 at t=S, 1.0 at t=0, falls as time passes", () => {
+  const s = 10;
+  approx(srs.retrievability(s, s), 0.9);
+  approx(srs.retrievability(0, s), 1.0, 1e-9);
+  assert.ok(srs.retrievability(2 * s, s) < srs.retrievability(s, s));
+});
+
+test("migrates an old SM-2 state (no stability) without crashing", () => {
+  const legacy = {
+    box: 2, ease: 2.5, intervalDays: 4,
+    dueAt: new Date(T0).toISOString(), lastReviewedAt: new Date(T0).toISOString(),
+    reps: 3, lapses: 0,
+  };
+  const s = srs.grade(legacy, "good", T0 + DAY);
+  assert.equal(typeof s.stability, "number");
+  assert.equal(typeof s.difficulty, "number");
+  assert.equal(s.reps, 4);
+  assert.ok(s.intervalDays >= 1);
 });
 
 test("selectDue: overdue-first, then unseen, respecting limit", () => {
   const mk = (dueOffsetDays, reps) => ({
-    box: 1, ease: 2.5, intervalDays: 1,
+    stability: 5, difficulty: 5, intervalDays: 5,
     dueAt: new Date(T0 + dueOffsetDays * DAY).toISOString(),
     lastReviewedAt: new Date(T0).toISOString(), reps, lapses: 0,
   });
   const items = [
-    { card: "future", srs: mk(5, 3) },      // not due
-    { card: "due-mild", srs: mk(-1, 3) },    // 1 day overdue
-    { card: "due-worst", srs: mk(-10, 3) },  // 10 days overdue
-    { card: "unseen", srs: null },           // never seen
-    { card: "unseen2", srs: mk(0, 0) },      // reps 0 counts as unseen
+    { card: "future", srs: mk(5, 3) },
+    { card: "due-mild", srs: mk(-1, 3) },
+    { card: "due-worst", srs: mk(-10, 3) },
+    { card: "unseen", srs: null },
+    { card: "unseen2", srs: mk(0, 0) },
   ];
-  const now = T0;
-  const all = srs.selectDue(items, now);
-  assert.deepEqual(all, ["due-worst", "due-mild", "unseen", "unseen2"]);
-  const capped = srs.selectDue(items, now, 2);
-  assert.deepEqual(capped, ["due-worst", "due-mild"]);
+  assert.deepEqual(srs.selectDue(items, T0), ["due-worst", "due-mild", "unseen", "unseen2"]);
+  assert.deepEqual(srs.selectDue(items, T0, 2), ["due-worst", "due-mild"]);
 });
 
-test("grade never mutates the input state", () => {
+test("grade is deterministic and never mutates the input", () => {
   const s = srs.initSrs(T0);
-  const snapshot = JSON.stringify(s);
-  srs.grade(s, "good", T0 + DAY);
-  assert.equal(JSON.stringify(s), snapshot);
+  const snap = JSON.stringify(s);
+  const a = srs.grade(s, "good", T0 + DAY);
+  const b = srs.grade(s, "good", T0 + DAY);
+  assert.equal(JSON.stringify(s), snap, "input untouched");
+  assert.deepEqual(a, b, "same inputs ⇒ same output");
 });

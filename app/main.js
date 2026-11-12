@@ -306,7 +306,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Tricky: 2+ lapses, or still box 0–1 after 3+ tries; leaves after 3 right in a row.
   function isTricky(id, D) {
     const s = D.prog.get(id); if (!s) return false;
-    if (!(s.lapses >= 2 || (s.box <= 1 && s.reps >= 3))) return false;
+    if (!(s.lapses >= 2 || ((s.difficulty || 5) >= 7 && s.reps >= 3))) return false;
     const es = D.byCard.get(id) || [];
     return !(es.length >= 3 && es.slice(-3).every((e) => e.grade !== "again"));
   }
@@ -331,7 +331,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ---- selection: pull-regardless-of-due so study is never empty -----------
   const SESSION_SIZE = 20;   // default batch; Me "session length" (Full/10/20/30) is Phase 5
-  const weakness = (srs) => !srs || srs.reps === 0 ? 1000 : srs.lapses * 10 + (5 - srs.box) * 2 + (srs.reps < 3 ? 3 : 0);
+  const weakness = (srs) => !srs || srs.reps === 0 ? 1000 : srs.lapses * 10 + (srs.difficulty || 5) * 2 + (srs.reps < 3 ? 3 : 0);
   async function practicePool(ls) {
     const ids = [...new Set(ls.flatMap((l) => l.cardIds))];
     const cards = await store.cardsByIds(ids, ctx.contentOwnerId);

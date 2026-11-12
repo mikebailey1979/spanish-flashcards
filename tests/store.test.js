@@ -45,7 +45,8 @@ test("a user studying their own content persists progress + an event", async () 
   assert.equal(res.persisted, true);
   const p = await store.getProgress(aliyah.id, c1.id);
   assert.ok(p, "progress saved");
-  assert.equal(p.srs.box, 1);
+  assert.equal(p.srs.reps, 1);
+  assert.ok(p.srs.stability > 0, "FSRS stability set after a review");
   const events = await store.adapter.getAll("reviewEvents");
   assert.equal(events.length, 1);
   assert.equal(events[0].userId, aliyah.id);

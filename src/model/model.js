@@ -89,8 +89,8 @@
 
   /**
    * @typedef {Object} SrsState
-   * @property {number} box             Leitner box 0..5
-   * @property {number} ease            SM-2-style ease factor (floor 1.3)
+   * @property {number|null} stability  FSRS memory stability in days (null until first review)
+   * @property {number|null} difficulty FSRS difficulty 1..10 (null until first review)
    * @property {number} intervalDays    Current interval in days (may be fractional)
    * @property {string} dueAt           ISO timestamp the card is next due
    * @property {string|null} lastReviewedAt ISO timestamp of the last review
