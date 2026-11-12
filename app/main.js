@@ -1179,6 +1179,143 @@ document.addEventListener("DOMContentLoaded", async () => {
     </section>${tabbar(tab === "me" ? "me" : "home")}`);
   }
 
+  // ---- Phase 6: AI capture (photo -> OCR -> review -> lesson) --------------
+  //  6a: C1 add-pages + C2 reading, against a MOCK proposer. The real
+  //  importFromPhoto (Claude vision via a Netlify Function) swaps in at 6e;
+  //  segmentation review (C3) + word HITL (C4/H3) + import commit land in 6b/6c.
+  let capture = null;                 // { pages: [{id, dataUrl}], proposal }
+  let _capInputs = null;
+  function capInputs() {
+    if (_capInputs) return _capInputs;
+    const make = (useCamera) => {
+      const el = document.createElement("input");
+      el.type = "file"; el.accept = "image/*"; el.multiple = !useCamera;
+      if (useCamera) el.setAttribute("capture", "environment");
+      el.style.display = "none";
+      el.addEventListener("change", async () => { await capAddFiles(el.files); el.value = ""; });
+      document.body.appendChild(el);
+      return el;
+    };
+    _capInputs = { lib: make(false), cam: make(true) };
+    return _capInputs;
+  }
+  function readFileDataUrl(file) {
+    return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+  }
+  async function capAddFiles(fileList) {
+    if (!capture) capture = { pages: [], proposal: null };
+    for (const f of Array.from(fileList || [])) {
+      if (!/^image\//.test(f.type || "")) continue;
+      try { capture.pages.push({ id: "pg" + Date.now() + Math.random().toString(36).slice(2, 6), dataUrl: await readFileDataUrl(f) }); } catch {}
+    }
+    renderCapture();
+  }
+  function startCapture() { capture = { pages: [], proposal: null }; renderCapture(); }
+
+  function renderCapture() {
+    if (!capture) capture = { pages: [], proposal: null };
+    const pages = capture.pages;
+    const thumb = (p, i) => `<div style="position:relative;aspect-ratio:3/4;border-radius:var(--s-3);overflow:hidden;background:rgba(128,128,128,.18)">
+      ${p.dataUrl ? `<img src="${p.dataUrl}" alt="Page ${i + 1}" style="width:100%;height:100%;object-fit:cover">` : ""}
+      <span style="position:absolute;left:6px;top:6px;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">${i + 1}</span>
+      <button data-act="cap-remove" data-id="${p.id}" aria-label="Remove page ${i + 1}" style="position:absolute;right:6px;top:6px;width:24px;height:24px;border:0;border-radius:12px;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer">${icon("close", "icon--sm")}</button>
+    </div>`;
+    const addTile = `<button data-act="cap-add-lib" aria-label="Add a page" style="aspect-ratio:3/4;border-radius:var(--s-3);border:2px dashed rgba(128,128,128,.5);background:transparent;color:inherit;display:flex;align-items:center;justify-content:center;cursor:pointer">${icon("add", "icon--lg")}</button>`;
+    mount(`<section class="screen screen--tabbed">
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 1 of 4 · Add pages</div>
+      <h1 class="t-h1">Add homework</h1>
+      <p class="muted" style="margin-top:var(--s-2)">Take a photo of each page. You can add as many as you need.</p>
+      ${pages.length
+        ? `<div class="section-label"><span class="t-caps" style="opacity:.75">${pages.length} page${pages.length > 1 ? "s" : ""}</span></div>
+           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3);margin-top:var(--s-4)">${pages.map(thumb).join("")}${addTile}</div>
+           <p class="muted" style="font-size:var(--t-label);margin-top:var(--s-3)">Tap a page’s × to remove it.</p>`
+        : `<div class="placeholder" style="margin-top:var(--s-6)">${icon("camera")}<div class="t-title">No pages yet</div><div class="muted">Add your first homework page to begin.</div></div>`}
+      <div style="display:flex;flex-direction:column;gap:var(--s-3);margin-top:var(--s-6)">
+        <button class="row" data-act="cap-add-cam"><span class="row__main"><span class="row__title">${icon("camera", "icon--sm")} Take a photo</span></span>${icon("chevron", "icon--sm")}</button>
+        <button class="row" data-act="cap-add-lib"><span class="row__main"><span class="row__title">Choose from library</span></span>${icon("chevron", "icon--sm")}</button>
+        <button class="btn btn--primary" data-act="cap-read" ${pages.length ? "" : 'disabled style="opacity:.5;pointer-events:none"'}>${pages.length ? `Read ${pages.length} page${pages.length > 1 ? "s" : ""}` : "Read pages"}</button>
+      </div>
+    </section>${tabbar("add")}`);
+  }
+
+  const CAP_STEPS = ["Pages sent", "Reading your pages", "Finding your lessons", "Translating words"];
+  function renderReading() {
+    const n = capture ? capture.pages.length : 0;
+    const paint = (done) => {
+      const rows = CAP_STEPS.map((s, i) => {
+        const state = i < done ? "done" : i === done ? "active" : "todo";
+        const mark = state === "done" ? icon("check", "icon--sm")
+          : state === "active" ? `<span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>`
+          : `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:rgba(128,128,128,.4)"></span>`;
+        return `<div style="display:flex;align-items:center;gap:var(--s-3);padding:var(--s-3) 0;opacity:${state === "todo" ? ".5" : "1"}">${mark}<span>${s}${state === "active" && i === 1 && n ? ` (1 of ${n})` : ""}</span></div>`;
+      }).join("");
+      mount(`<section class="screen screen--tabbed">
+        <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 2 of 4 · Reading</div>
+        <h1 class="t-h1">Reading your pages</h1>
+        <div style="margin-top:var(--s-5)">${rows}</div>
+        <p class="muted" style="margin-top:var(--s-4)">Big batches take a little longer. You can leave this open.</p>
+        <button class="btn" data-act="cap-cancel" style="margin-top:var(--s-5);background:transparent;border:1px solid rgba(128,128,128,.4)">Cancel</button>
+      </section>`);
+    };
+    paint(0);
+    let step = 0;
+    const tick = setInterval(() => { step = Math.min(step + 1, CAP_STEPS.length - 1); paint(step); }, 500);
+    mockImportFromPhoto(capture ? capture.pages : [])
+      .then((proposal) => { clearInterval(tick); capture.proposal = proposal; paint(CAP_STEPS.length); setTimeout(renderCaptureFound, 400); })
+      .catch(() => { clearInterval(tick); renderCaptureProblem(); });
+  }
+
+  // 6a bridge summary — replaced by the C3 segmentation review in 6b.
+  function renderCaptureFound() {
+    const lessons = (capture.proposal && capture.proposal.lessons) || [];
+    const words = lessons.reduce((a, l) => a + l.sections.reduce((b, s) => b + s.words.length, 0), 0);
+    const rows = lessons.map((l) => {
+      const w = l.sections.reduce((b, s) => b + s.words.length, 0);
+      return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title">${esc(l.name)}</span><span class="row__meta">${w} words · pages ${l.pages.join(", ")}</span></span></div>`;
+    }).join("");
+    mount(`<section class="screen screen--tabbed">
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 3 of 4 · Check the lessons</div>
+      <h1 class="t-h1">We found ${lessons.length} lesson${lessons.length === 1 ? "" : "s"}</h1>
+      <p class="muted" style="margin-top:var(--s-2)">${words} words across ${capture.pages.length} page${capture.pages.length === 1 ? "" : "s"}. Rename, split &amp; merge come next (6b), then word-by-word review before anything is saved.</p>
+      <div class="list" style="margin-top:var(--s-4)">${rows}</div>
+      <button class="btn btn--primary" data-act="cap-cancel" style="margin-top:var(--s-6)">Back to home</button>
+    </section>${tabbar("add")}`);
+  }
+
+  function renderCaptureProblem() {
+    mount(`<section class="screen screen--tabbed">
+      <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
+      <h1 class="t-h1">We couldn’t read those</h1>
+      <div class="placeholder" style="margin-top:var(--s-5)">${icon("offline")}<div class="t-title">Something interrupted the scan</div><div class="muted">Your photos are safe on this phone. Try again in a moment.</div></div>
+      <div style="display:flex;flex-direction:column;gap:var(--s-3);margin-top:var(--s-5)">
+        <button class="btn btn--primary" data-act="cap-read">Try again</button>
+        <button class="btn" data-act="cap-cancel" style="background:transparent;border:1px solid rgba(128,128,128,.4)">Back to home</button>
+      </div>
+    </section>${tabbar("add")}`);
+  }
+
+  // DEV MOCK proposer — replaced by the Netlify Function (Claude vision) at 6e.
+  function mockImportFromPhoto(pages) {
+    const np = (pages && pages.length) || 1;
+    return new Promise((resolve) => setTimeout(() => resolve({
+      lessons: [
+        { name: "Las frutas — Fruits", pages: [1], sections: [
+          { cat: "Fruits", words: [
+            { front: "la manzana", back: "apple" },
+            { front: "la fresa", back: "strawberry", confidence: "low" },
+            { front: "el plátano", back: "banana" },
+            { front: "la sandía", back: "watermelon", duplicate: true },
+          ] } ] },
+        { name: "La comida callejera — Street food", pages: np > 1 ? [2, Math.min(np, 3)] : [1], sections: [
+          { cat: "Street food", words: [
+            { front: "el taco", back: "taco" },
+            { front: "la quesadilla", back: "quesadilla" },
+            { front: "el elote", back: "corn on the cob", confidence: "low" },
+          ] } ] },
+      ],
+    }), 1500));
+  }
+
   function renderDone() {
     const pct = S.total ? Math.round((S.right / S.total) * 100) : 0;
     mount(`<section class="screen study is-correct">
@@ -1295,7 +1432,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       else if (tab === "lessons") renderLessons();
       else if (tab === "progress") renderProgress();
       else if (tab === "me") renderMe();
-      else if (tab === "add") renderPlaceholder("add", "Add homework");
+      else if (tab === "add") { if (capture && capture.pages.length) renderCapture(); else startCapture(); }
     }
     else if (act === "home") renderHome();
     else if (act === "lessons") renderLessons();
@@ -1304,6 +1441,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "study-all" || act === "keep-practicing") startSession(lessons);
     else if (act === "resume") resumeSession();
     else if (act === "new-session") { clearResume(); renderHome(); }
+    // Phase 6 capture
+    else if (act === "cap-add-lib") capInputs().lib.click();
+    else if (act === "cap-add-cam") capInputs().cam.click();
+    else if (act === "cap-remove") { if (capture) { capture.pages = capture.pages.filter((p) => p.id !== id); renderCapture(); } }
+    else if (act === "cap-read") renderReading();
+    else if (act === "cap-cancel") { capture = null; renderHome(); }
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
     else if (act === "idk") idk();
@@ -1499,5 +1642,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", authGate);
   authGate();
   // console poking (getters: user/ctx are reassigned on sign-in)
-  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync };
+  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync,
+    cap: { start: startCapture, reading: renderReading, seed(n) { capture = { pages: Array.from({ length: n || 3 }, (_, i) => ({ id: "pg" + i, dataUrl: "" })), proposal: null }; renderReading(); } } };
 });
