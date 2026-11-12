@@ -164,6 +164,72 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (body) body.textContent = `Done — “${typed}” will count from now on.`;
     if (actions) actions.innerHTML = "";
   }
+  // Pronunciation practice (R2) — opt-in, consent-gated; records via the Azure Speech
+  //  SDK (token from the function, key stays server-side), scores, then Claude coaches.
+  //  NOTE: the mic/scoring path needs a real device to validate (can't test headless).
+  const SPIN = `<span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>`;
+  function pronSupported() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+  function pronConsent() { try { return localStorage.getItem("aliyah.pron.consent") === "1"; } catch { return false; } }
+  function loadSpeechSdk() {
+    if (self.SpeechSDK) return Promise.resolve(self.SpeechSDK);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.40.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js";
+      s.onload = () => resolve(self.SpeechSDK); s.onerror = () => reject(new Error("speech sdk failed to load"));
+      document.head.appendChild(s);
+    });
+  }
+  async function assessPronunciation(word) {
+    const ad = aiAdapter(); if (!ad) throw new Error("backend not configured");
+    const tok = await ad.speechToken(); if (!tok || !tok.token) throw new Error("no speech token");
+    const SDK = await loadSpeechSdk();
+    const speechConfig = SDK.SpeechConfig.fromAuthorizationToken(tok.token, tok.region);
+    speechConfig.speechRecognitionLanguage = "es-ES";
+    const audioConfig = SDK.AudioConfig.fromDefaultMicrophoneInput();
+    const paConfig = new SDK.PronunciationAssessmentConfig(word, SDK.PronunciationAssessmentGradingSystem.HundredMark, SDK.PronunciationAssessmentGranularity.Phoneme, false);
+    const recognizer = new SDK.SpeechRecognizer(speechConfig, audioConfig);
+    paConfig.applyTo(recognizer);
+    const result = await new Promise((resolve, reject) => recognizer.recognizeOnceAsync((r) => resolve(r), (e) => reject(e)));
+    try { recognizer.close(); } catch {}
+    const pa = SDK.PronunciationAssessmentResult.fromResult(result);
+    let worst = null, worstScore = 101;
+    try {
+      for (const w of (pa.detailResult && pa.detailResult.Words) || [])
+        for (const ph of w.Phonemes || []) {
+          const sc = ph.PronunciationAssessment && ph.PronunciationAssessment.AccuracyScore;
+          if (typeof sc === "number" && sc < worstScore) { worstScore = sc; worst = ph.Phoneme; }
+        }
+    } catch {}
+    return { accuracy: pa.accuracyScore, pronunciation: pa.pronunciationScore, fluency: pa.fluencyScore, worstPhoneme: worst, said: result.text || "" };
+  }
+  function renderPronConsent(word) {
+    sheet(`<div class="sheet__title">Pronunciation practice</div>
+      <div class="sheet__text">When you tap Record, your microphone sends a short clip to a speech service (Azure) that scores how close your Spanish sounds. The clip is used only to score it and isn’t saved. It’s just friendly practice — it never changes your lesson progress.</div>
+      <button class="btn btn--primary" data-act="pron-consent-ok" data-say="${esc(word)}">Got it, let’s try</button>
+      <button class="btn btn--secondary" data-act="close-sheet">Not now</button>`);
+  }
+  function openPronounce(word) {
+    if (!word) return;
+    if (!pronSupported()) {
+      sheet(`<div class="sheet__title">Say it</div><div class="sheet__text">Pronunciation practice needs a microphone this device doesn’t offer here. Try it on your phone.</div><button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
+      return;
+    }
+    if (!pronConsent()) return renderPronConsent(word);
+    sheet(`<div class="sheet__title">Say “${esc(word)}”</div>
+      <div id="pron-body" class="sheet__text" style="min-height:72px;text-align:center">Tap <b>Record</b> and say it out loud.</div>
+      <button class="btn btn--primary" data-act="pron-record" data-say="${esc(word)}">${icon("mic", "icon--sm")} Record</button>
+      <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
+  }
+  async function doPronRecord(word) {
+    const body = document.getElementById("pron-body");
+    if (body) body.innerHTML = `${SPIN} <span style="margin-left:8px">Listening… say “${esc(word)}”</span>`;
+    let scores = null;
+    try { scores = await assessPronunciation(word); }
+    catch { if (body) body.innerHTML = `<div class="muted">Couldn’t hear that clearly — find a quiet spot and try again.</div>`; return; }
+    const score = Math.round(scores.pronunciation || scores.accuracy || 0);
+    if (body) body.innerHTML = `<div class="t-hero" style="font-size:44px">${score}<span style="opacity:.6;font-size:18px">/100</span></div><div id="pron-coach" class="muted" style="margin-top:6px">${SPIN} a tip…</div>`;
+    try { const ad = aiAdapter(); const c = ad ? await ad.coachPronunciation(word, scores) : { text: "" }; const el = document.getElementById("pron-coach"); if (el) el.textContent = c.text || (score >= 85 ? "¡Muy bien! That sounded great." : "Nice try — say it a little slower and clearer next time."); } catch {}
+  }
 
   // ---- direction, mode + bidirectional grading (Phase 3) -------------------
   const DIRS = ["es-en", "en-es"];
@@ -691,6 +757,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     const toolRow = S.idk ? "" : `<div class="toolrow" style="margin-bottom:var(--s-5)">
       <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(c.front)}" aria-label="Hear it in Spanish">${icon("speaker", "icon--sm")}</button>
+      <button class="toolbtn toolbtn--icon" data-act="pronounce" data-say="${esc(c.front)}" aria-label="Say it">${icon("mic", "icon--sm")}</button>
       <button class="toolbtn" data-act="open-rating">${icon("face-good", "icon--sm")} How was that?</button>
       <button class="toolbtn" data-act="explain">Explain</button>
       <button class="toolbtn" data-act="example">Example</button></div>`;
@@ -1914,6 +1981,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "example") openExample(S.current);
     else if (act === "adjudicate") openAdjudicate(S.current, S.typed, S.dir);
     else if (act === "adj-accept") doAdjAccept();
+    else if (act === "pronounce") openPronounce(t.dataset.say);
+    else if (act === "pron-consent-ok") { try { localStorage.setItem("aliyah.pron.consent", "1"); } catch {} openPronounce(t.dataset.say); }
+    else if (act === "pron-record") doPronRecord(t.dataset.say);
     else if (act === "word-suggest-en") wordSuggestEn();
     else if (act === "open-rating") openRating();
     else if (act === "rate") rate(t.dataset.val);
@@ -2100,7 +2170,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", authGate);
   authGate();
   // console poking (getters: user/ctx are reassigned on sign-in)
-  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync, explain: openExplain, example: openExample, adjudicate: openAdjudicate,
+  window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync, explain: openExplain, example: openExample, adjudicate: openAdjudicate, pronounce: openPronounce,
     cap: { start: startCapture, reading: renderReading, firstrun: renderFirstRun, offline: renderCapOffline, downscale: downscaleImage,
       seed(n, mode) { capture = { pages: Array.from({ length: n || 3 }, (_, i) => ({ id: "pg" + i, dataUrl: "" })), proposal: null, mode }; renderReading(); } } };
 });

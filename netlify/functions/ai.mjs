@@ -148,6 +148,28 @@ async function adjudicateAnswer(card, typed, dir) {
   try { const j = JSON.parse(s >= 0 && e > s ? text.slice(s, e + 1) : text); return { verdict: j.verdict === "accept" ? "accept" : "reject", reason: j.reason || "" }; } catch { return { verdict: "reject", reason: "" }; }
 }
 
+// Pronunciation (R2): issue a short-lived Azure Speech token so the key never
+// reaches the browser; the client SDK does the mic capture + assessment with it.
+async function speechToken() {
+  const key = process.env.AZURE_SPEECH_KEY, region = process.env.AZURE_SPEECH_REGION;
+  if (!key || !region) return { error: "not_configured" };
+  const r = await fetch(`https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`, {
+    method: "POST",
+    headers: { "Ocp-Apim-Subscription-Key": key, "Content-Length": "0" },
+  });
+  if (!r.ok) throw new Error("azure token " + r.status);
+  return { token: await r.text(), region };
+}
+
+// Pronunciation (R2): Claude turns the Azure scores into one warm, kid-friendly tip.
+async function coachPronunciation(word, scores) {
+  const s = scores || {};
+  const prompt = `A young Spanish student said the word "${word}". Her pronunciation scores (0-100): overall ${Math.round(s.pronunciation || 0)}, accuracy ${Math.round(s.accuracy || 0)}${s.worstPhoneme ? `, weakest sound "${s.worstPhoneme}"` : ""}. In 1-2 short, warm, encouraging sentences, give ONE specific, kid-friendly tip to improve — or just praise her if it's already great. No scores, no lists, no markdown; speak to her directly.`;
+  const client = new Anthropic();
+  const resp = await client.messages.create({ model: "claude-sonnet-5-5", max_tokens: 200, messages: [{ role: "user", content: prompt }] });
+  return { text: resp.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim() };
+}
+
 export const handler = async (event) => {
   const headers = { "Content-Type": "application/json" };
   try {
@@ -177,6 +199,14 @@ export const handler = async (event) => {
     }
     if (op === "adjudicateAnswer") {
       const r = await adjudicateAnswer(args[0], args[1], args[2]);
+      return { statusCode: 200, headers, body: JSON.stringify(r) };
+    }
+    if (op === "speechToken") {
+      const r = await speechToken();
+      return { statusCode: 200, headers, body: JSON.stringify(r) };
+    }
+    if (op === "coachPronunciation") {
+      const r = await coachPronunciation(args[0], args[1]);
       return { statusCode: 200, headers, body: JSON.stringify(r) };
     }
     return { statusCode: 404, headers, body: JSON.stringify({ error: "unknown op: " + op }) };
