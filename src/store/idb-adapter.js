@@ -16,10 +16,11 @@
   "use strict";
 
   const DEFAULT_DB = "aliyah-flashcards";
-  // Bumped to 2 to add the roleplaySessions object store (R4). onupgradeneeded
-  // creates any missing store, so existing v1 databases upgrade in place.
-  const DEFAULT_VERSION = 2;
-  const STORES = ["users", "decks", "lessons", "cards", "progress", "reviewEvents", "roleplaySessions"];
+  // v2 added roleplaySessions (R4); v3 adds captureDrafts (R5 — a LOCAL-ONLY,
+  // never-synced store that persists an in-progress homework scan across reloads).
+  // onupgradeneeded creates any missing store, so existing databases upgrade in place.
+  const DEFAULT_VERSION = 3;
+  const STORES = ["users", "decks", "lessons", "cards", "progress", "reviewEvents", "roleplaySessions", "captureDrafts"];
 
   /** @param {IDBRequest} req @returns {Promise<any>} */
   function wrap(req) {

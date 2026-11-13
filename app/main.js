@@ -1604,6 +1604,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   //  segmentation review (C3) + word HITL (C4/H3) + import commit land in 6b/6c.
   let capture = null;                 // { pages: [{id, dataUrl}], proposal }
   let _capInputs = null;
+  // Persist an in-progress scan (R5) so a reload/force-quit can resume it. LOCAL-ONLY
+  // (the `captureDrafts` IndexedDB store is never synced — a half-scan shouldn't leave
+  // the device). Keyed by the signed-in account; fire-and-forget so it never blocks UI.
+  const captureKey = () => (user && user.id) || DEMO_ID;
+  function persistCapture() {
+    const key = captureKey();
+    try {
+      if (capture && capture.pages && capture.pages.length) store.adapter.put("captureDrafts", { id: key, capture, updatedAt: now() });
+      else store.adapter.remove("captureDrafts", key);
+    } catch {}
+  }
+  function clearCapture() { capture = null; persistCapture(); }
+  async function restoreCaptureDraft() {
+    try {
+      const rec = await store.adapter.get("captureDrafts", captureKey());
+      if (rec && rec.capture && rec.capture.pages && rec.capture.pages.length) {
+        if (!rec.updatedAt || now() - rec.updatedAt < 86400000) capture = rec.capture;   // resume drafts < 24h old
+        else await store.adapter.remove("captureDrafts", captureKey());
+      }
+    } catch {}
+  }
   function capInputs() {
     if (_capInputs) return _capInputs;
     const make = (useCamera) => {
@@ -1657,6 +1678,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderCapture() {
     if (!capture) capture = { pages: [], proposal: null };
+    persistCapture();                 // pages added/removed → save the draft
     const pages = capture.pages;
     const thumb = (p, i) => `<div style="position:relative;aspect-ratio:3/4;border-radius:var(--s-3);overflow:hidden;background:rgba(128,128,128,.18)">
       ${p.dataUrl ? `<img src="${p.dataUrl}" alt="Page ${i + 1}" style="width:100%;height:100%;object-fit:cover">` : ""}
@@ -1727,6 +1749,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     return lo === hi ? `Page ${lo}` : `Pages ${lo}–${hi}`;
   }
   function renderCaptureFound() {
+    persistCapture();                 // proposal settled → save the draft
     const lessons = (capture.proposal && capture.proposal.lessons) || [];
     const card = (l, i) => {
       const w = propWords(l);
@@ -1832,6 +1855,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderWordReview();
   }
   function renderWordReview() {
+    persistCapture();                 // word-review edits → save the draft
     const prop = capture.proposal, R = capture.review, l = prop.lessons[R.idx];
     const cats = l.sections.map((s) => s.cat);
     const filterChips = ["__all__", ...cats].map((c) => {
@@ -1909,8 +1933,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       R.saved.push({ name: l.name, count: res.cardCount });
     }
     R.idx++; R.filter = "__all__";
-    if (R.idx >= capture.proposal.lessons.length) { await refreshContent(); renderCaptureSaved(); }
-    else renderWordReview();
+    if (R.idx >= capture.proposal.lessons.length) {
+      await refreshContent();
+      try { await store.adapter.remove("captureDrafts", captureKey()); } catch {}  // scan imported — don't resume it
+      renderCaptureSaved();
+    } else renderWordReview();
   }
   function renderCaptureSaved() {
     const saved = capture.review.saved, total = saved.reduce((a, s) => a + s.count, 0);
@@ -2189,7 +2216,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "cap-add-cam") capInputs().cam.click();
     else if (act === "cap-remove") { if (capture) { capture.pages = capture.pages.filter((p) => p.id !== id); renderCapture(); } }
     else if (act === "cap-read") renderReading();
-    else if (act === "cap-cancel") { capture = null; renderHome(); }
+    else if (act === "cap-cancel") { clearCapture(); renderHome(); }
     else if (act === "seg-rename") openSegRename(Number(t.dataset.i));
     else if (act === "seg-rename-save") doSegRename(Number(t.dataset.i));
     else if (act === "seg-split") renderSegSplit(Number(t.dataset.i));
@@ -2204,11 +2231,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "wf-save") doWordFix(Number(t.dataset.si), Number(t.dataset.wi));
     else if (act === "wf-remove") removeWord(Number(t.dataset.si), Number(t.dataset.wi));
     else if (act === "rw-commit") commitReviewLesson();
-    else if (act === "cap-done-lessons") { capture = null; renderLessons(); }
-    else if (act === "cap-study") { capture = null; renderLessons(); }
+    else if (act === "cap-done-lessons") { clearCapture(); renderLessons(); }
+    else if (act === "cap-study") { clearCapture(); renderLessons(); }
     else if (act === "cap-save-later") renderHome();
     else if (act === "cap-retake") { if (capture) capture.mode = null; renderCapture(); }
-    else if (act === "cap-add-manual") { capture = null; renderLessons(); }
+    else if (act === "cap-add-manual") { clearCapture(); renderLessons(); }
     else if (act === "cap-skip-bad") { if (capture) { const bad = (t.dataset.bad || "").split(",").map(Number); capture.pages = capture.pages.filter((p, i) => !bad.includes(i + 1)); capture.mode = null; renderReading(); } }
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
@@ -2378,6 +2405,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await seedUser(store, DEMO_ID, now());
     _demoReady = true;
     await _recache();
+    await restoreCaptureDraft();                    // resume an in-progress scan (R5)
   }
 
   // Bind the signed-in Google account as the active account, load its data, sync.
@@ -2411,6 +2439,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (e) { console.warn("initial pull deferred (offline?):", e && e.message); }
     await seedUser(store, user.id, now());
     await _recache();
+    await restoreCaptureDraft();                    // resume an in-progress scan (R5)
     scheduleSync();                                 // push the seed + catch up, in the background
   }
 
