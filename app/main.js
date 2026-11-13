@@ -1533,12 +1533,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     openEmuOptions();
   }
 
-  function renderPlaceholder(tab, title) {
-    mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
-      <div class="placeholder">${icon(tab === "me" ? "me" : "add")}<div class="t-title">Coming in a later phase</div>
-        <div class="muted">This screen is designed and specced — not built yet.</div></div>
-    </section>${tabbar(tab === "me" ? "me" : "home")}`);
-  }
 
   // ---- Phase 6: AI capture (photo -> OCR -> review -> lesson) --------------
   //  6a: C1 add-pages + C2 reading, against a MOCK proposer. The real
