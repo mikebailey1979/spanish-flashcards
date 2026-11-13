@@ -160,3 +160,23 @@ test("setUserRole promotes/demotes and guards the sole admin", async () => {
   await assert.rejects(() => store.setUserRole(mike.id, "user", T0), /only admin/);
   assert.equal((await store.getUser(mike.id)).role, "admin");
 });
+
+test("listDeletedCards surfaces individually-deleted words and restores them", async () => {
+  const { store, aliyah, lesson, c1 } = await fixture();
+  await store.deleteCard(c1.id, lesson.id, T0);
+  const del = await store.listDeletedCards(aliyah.id);
+  assert.equal(del.length, 1);
+  assert.equal(del[0].id, c1.id);
+  assert.equal(del[0].deletedFromLessonId, lesson.id);
+
+  await store.restoreCard(c1.id, del[0].deletedFromLessonId, T0);
+  assert.equal((await store.listDeletedCards(aliyah.id)).length, 0);
+  assert.ok((await store.getLesson(lesson.id)).cardIds.includes(c1.id));
+});
+
+test("deleting a whole lesson does NOT surface its cards as recently-deleted words", async () => {
+  const { store, aliyah, lesson } = await fixture();
+  await store.deleteLesson(lesson.id, T0);
+  // lesson-restore handles these; they must not appear in the per-word list
+  assert.equal((await store.listDeletedCards(aliyah.id)).length, 0);
+});

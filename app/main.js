@@ -1060,25 +1060,44 @@ document.addEventListener("DOMContentLoaded", async () => {
     app.querySelectorAll(".toast").forEach((n) => n.remove()); renderLessonDetail(id);
   }
   async function renderRecentlyDeleted() {
-    const deleted = await store.listDeletedLessons(DEMO_ID);
-    const rows = deleted.map((l) => {
-      const daysLeft = Math.max(0, 7 - Math.floor((now() - Date.parse(l.deletedAt)) / 86400000));
+    const owner = ctx.contentOwnerId;
+    const deleted = await store.listDeletedLessons(owner);
+    const deletedWords = await store.listDeletedCards(owner);
+    const daysLeftOf = (iso) => Math.max(0, 7 - Math.floor((now() - Date.parse(iso)) / 86400000));
+    const lessonRows = deleted.map((l) => {
+      const daysLeft = daysLeftOf(l.deletedAt);
       return `<div class="row" style="cursor:default"><span class="row__main">
         <span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span>
         <span class="row__meta">${l.cardIds.length} words · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left</span></span>
         <button class="chip" style="background:#fff;color:var(--btn-text)" data-act="lesson-restore" data-id="${l.id}">Restore</button></div>`;
     }).join("");
+    const wordRows = deletedWords.map((c) => {
+      const daysLeft = daysLeftOf(c.deletedAt);
+      const l = lessons.find((x) => x.id === c.deletedFromLessonId);
+      return `<div class="row" style="cursor:default"><span class="row__main">
+        <span class="row__title" style="-webkit-line-clamp:1">${esc(c.front)} · ${esc(c.back)}</span>
+        <span class="row__meta">${l ? esc(l.name) + " · " : ""}${daysLeft} day${daysLeft === 1 ? "" : "s"} left</span></span>
+        <button class="chip" style="background:#fff;color:var(--btn-text)" data-act="word-restore" data-id="${c.id}">Restore</button></div>`;
+    }).join("");
+    const empty = !deleted.length && !deletedWords.length;
     mount(`<section class="screen screen--tabbed">
       <div class="study-head__row" style="margin-bottom:var(--s-7)">
         <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Recently deleted</span>
       </div>
-      <div class="muted" style="margin-bottom:var(--s-5)">Lessons stay here for 7 days, then they are gone for good. Restoring brings back every word and your progress on it, on all your devices.</div>
-      ${deleted.length ? `<div class="list">${rows}</div>`
-        : `<div class="placeholder">${icon("restore")}<div class="t-title">Nothing here</div><div class="muted">Deleted lessons show up here for 7 days.</div></div>`}
+      <div class="muted" style="margin-bottom:var(--s-5)">Deleted lessons and words stay here for 7 days, then they are gone for good. Restoring brings back the word and your progress on it, on all your devices.</div>
+      ${deleted.length ? `<div class="section-label"><span class="t-caps" style="opacity:.75">Lessons</span></div><div class="list">${lessonRows}</div>` : ""}
+      ${deletedWords.length ? `<div class="section-label" ${deleted.length ? 'style="margin-top:var(--s-6)"' : ""}><span class="t-caps" style="opacity:.75">Words</span></div><div class="list">${wordRows}</div>` : ""}
+      ${empty ? `<div class="placeholder">${icon("restore")}<div class="t-title">Nothing here</div><div class="muted">Deleted lessons and words show up here for 7 days.</div></div>` : ""}
     </section>${tabbar("me")}`);
   }
   async function restoreFromList(id) { await store.restoreLesson(id, now()); await refreshContent(); renderRecentlyDeleted(); }
+  async function restoreDeletedWord(cardId) {
+    const deleted = await store.listDeletedCards(ctx.contentOwnerId);
+    const c = deleted.find((x) => x.id === cardId); if (!c) return;
+    await store.restoreCard(cardId, c.deletedFromLessonId, now());
+    await refreshContent(); renderRecentlyDeleted();
+  }
 
   // ---- merge + split (Phase 4c) -------------------------------------------
   let mergeState = null;
@@ -1345,7 +1364,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="list">
         ${settingRow("Sync", "All changes saved", "your-data")}
         ${settingRow("Export my data", "Save everything to a file", "export-data")}
-        ${settingRow("Recently deleted", "Restore lessons within 7 days", "recently-deleted")}
+        ${settingRow("Recently deleted", "Restore lessons and words within 7 days", "recently-deleted")}
       </div>
       ${user.role === "admin" ? `<div class="section-label"><span class="t-caps" style="opacity:.75">People</span></div>
       <div class="list">${settingRow("People with access", "Invite, roles, study as", "people")}</div>` : ""}
@@ -2224,6 +2243,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "lesson-undo") undoDelete(id);
     else if (act === "recently-deleted") renderRecentlyDeleted();
     else if (act === "lesson-restore") restoreFromList(id);
+    else if (act === "word-restore") restoreDeletedWord(id);
     else if (act === "close-sheet") closeSheet();
     // merge + split (Phase 4c)
     else if (act === "lesson-merge") openMerge(id);

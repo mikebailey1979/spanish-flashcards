@@ -295,13 +295,29 @@
       return card;
     }
 
-    /** Tombstone a card and drop it from its lesson. */
+    /** Tombstone a card and drop it from its lesson. Records the origin lesson so the
+     *  card can be surfaced + restored from the Recently-deleted WORDS list. */
     async function deleteCard(cardId, lessonId, now) {
       const c = await getCard(cardId); if (!c) throw new Error("card not found: " + cardId);
+      c.deletedFromLessonId = lessonId;
       model.softDelete(c, now); await putCard(c);
       const l = await getLesson(lessonId);
       if (l) { l.cardIds = l.cardIds.filter((x) => x !== cardId); model.markUpdated(l, now); await putLesson(l); }
       return c;
+    }
+
+    /**
+     * Individually-deleted words still restorable (7-day window): tombstoned cards
+     * that carry a `deletedFromLessonId` pointing at a STILL-LIVE lesson. Cards
+     * tombstoned as part of a whole-lesson delete are excluded (lesson-restore
+     * brings those back). Newest-deleted first.
+     * @param {string} ownerId @returns {Promise<Card[]>}
+     */
+    async function listDeletedCards(ownerId) {
+      const liveLessonIds = new Set((await all("lessons")).filter((l) => l.deletedAt == null).map((l) => l.id));
+      return (await all("cards"))
+        .filter((c) => c.ownerId === ownerId && c.deletedAt != null && c.deletedFromLessonId && liveLessonIds.has(c.deletedFromLessonId))
+        .sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
     }
 
     /** Un-tombstone a single card and re-add it to a lesson (word-delete undo). */
@@ -355,7 +371,7 @@
       // content management (Phase 4)
       renameLesson, deleteLesson, restoreLesson, listDeletedLessons,
       mergeLessons, splitLesson, moveCard,
-      editCard, addCard, deleteCard, restoreCard, purgeExpired,
+      editCard, addCard, deleteCard, restoreCard, listDeletedCards, purgeExpired,
       // roleplay transcripts (R4)
       putRoleplaySession, getRoleplaySession, listRoleplaySessions,
       // study
