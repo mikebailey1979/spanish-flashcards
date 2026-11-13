@@ -25,8 +25,8 @@
     ai: { enabled: onProdHost, endpoint: "/.netlify/functions/ai" },
     // Scripted roleplay (R4). Kept INERT (enabled:false) until reviewed on a real
     // device — flip `enabled` to true to surface the "pretend chat" feature. `synced`
-    // stays false until the roleplay_sessions table + RLS are applied (db/migrations/
-    // 2026-11-13-roleplay.sql); transcripts persist locally until then.
-    roleplay: { enabled: false, synced: false },
+    // is true now that the roleplay_sessions table + RLS are live on the box (applied
+    // 2026-11-13, db/migrations/2026-11-13-roleplay.sql) so transcripts sync cross-device.
+    roleplay: { enabled: false, synced: true },
   };
 })(typeof self !== "undefined" ? self : this);
