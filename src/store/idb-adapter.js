@@ -16,7 +16,10 @@
   "use strict";
 
   const DEFAULT_DB = "aliyah-flashcards";
-  const STORES = ["users", "decks", "lessons", "cards", "progress", "reviewEvents"];
+  // Bumped to 2 to add the roleplaySessions object store (R4). onupgradeneeded
+  // creates any missing store, so existing v1 databases upgrade in place.
+  const DEFAULT_VERSION = 2;
+  const STORES = ["users", "decks", "lessons", "cards", "progress", "reviewEvents", "roleplaySessions"];
 
   /** @param {IDBRequest} req @returns {Promise<any>} */
   function wrap(req) {
@@ -31,7 +34,7 @@
    */
   function createIdbAdapter(opts) {
     const name = (opts && opts.name) || DEFAULT_DB;
-    const version = (opts && opts.version) || 1;
+    const version = (opts && opts.version) || DEFAULT_VERSION;
     const stores = (opts && opts.stores) || STORES;
     /** @type {Promise<IDBDatabase>|null} */
     let dbp = null;

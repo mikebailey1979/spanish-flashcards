@@ -36,6 +36,11 @@
   "use strict";
 
   const COLLECTIONS = ["users", "decks", "lessons", "cards", "progress", "reviewEvents"];
+  // Roleplay transcripts (R4) live in their own collection, kept OUT of the default
+  // sync set above so adding the feature never breaks sync before the Supabase
+  // `roleplay_sessions` table exists. main.js adds it to the sync collections only
+  // when AliyahConfig.roleplay.synced is true (i.e. the migration has been applied).
+  const ROLEPLAY_COLLECTION = "roleplaySessions";
   const live = (rec) => rec && rec.deletedAt == null;
 
   /**
@@ -290,6 +295,22 @@
       return c;
     }
 
+    // ---- roleplay transcripts (R4) --------------------------------------
+    /** @param {import("../model/model.js").RoleplaySession} s */
+    const putRoleplaySession = (s) => put(ROLEPLAY_COLLECTION, s);
+    /** @param {string} id */
+    const getRoleplaySession = (id) => get(ROLEPLAY_COLLECTION, id);
+    /**
+     * Transcripts for one studier (or ALL, for an admin review list), newest first.
+     * @param {string} [studierId] omit to list every stored transcript (admin view)
+     * @returns {Promise<import("../model/model.js").RoleplaySession[]>}
+     */
+    async function listRoleplaySessions(studierId) {
+      const rows = (await all(ROLEPLAY_COLLECTION)).filter(live);
+      const want = studierId == null ? rows : rows.filter((s) => s.userId === studierId);
+      return want.sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)));
+    }
+
     /** Hard-delete tombstoned lessons + cards older than ttlDays (the real 7-day purge). */
     async function purgeExpired(ownerId, now, ttlDays = 7) {
       const cutoff = now - ttlDays * 86400000;
@@ -306,6 +327,7 @@
 
     return {
       COLLECTIONS,
+      ROLEPLAY_COLLECTION,
       adapter,
       // users
       putUser, getUser, listUsers,
@@ -316,10 +338,12 @@
       renameLesson, deleteLesson, restoreLesson, listDeletedLessons,
       mergeLessons, splitLesson, moveCard,
       editCard, addCard, deleteCard, restoreCard, purgeExpired,
+      // roleplay transcripts (R4)
+      putRoleplaySession, getRoleplaySession, listRoleplaySessions,
       // study
       studyContext, getProgress, review, selectDue,
     };
   }
 
-  return { createStore, COLLECTIONS };
+  return { createStore, COLLECTIONS, ROLEPLAY_COLLECTION: "roleplaySessions" };
 });

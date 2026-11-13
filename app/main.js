@@ -231,6 +231,189 @@ document.addEventListener("DOMContentLoaded", async () => {
     try { const ad = aiAdapter(); const c = ad ? await ad.coachPronunciation(word, scores) : { text: "" }; const el = document.getElementById("pron-coach"); if (el) el.textContent = c.text || (score >= 85 ? "¡Muy bien! That sounded great." : "Nice try — say it a little slower and clearer next time."); } catch {}
   }
 
+  // ---- Roleplay (R4): scripted "pretend chat" ----------------------------
+  //  A bounded, fixed-scenario Spanish practice conversation using a lesson's
+  //  words. Typed-only (v1). Every turn is moderated SERVER-SIDE (her input before
+  //  the model, the reply before it's shown); the client just renders + saves the
+  //  transcript. Kept behind AliyahConfig.roleplay.enabled (inert until reviewed).
+  function roleplayOn() { return !!(self.AliyahConfig && self.AliyahConfig.roleplay && self.AliyahConfig.roleplay.enabled); }
+  function roleplaySynced() { return !!(self.AliyahConfig && self.AliyahConfig.roleplay && self.AliyahConfig.roleplay.synced); }
+  function RP() { return self.SpanishFlashcardsRoleplay || null; }
+  let rp = null; // active chat: { session, scenario, lessonWords, busy, showEn, pendingUser, error, backLesson }
+
+  function mockRoleplayTurn(payload) {
+    const t = ((payload && payload.userText) || "").toLowerCase();
+    if (RP() && RP().looksLikePII(t))
+      return Promise.resolve({ status: "redirect", es: "Mmm, mejor sigamos con nuestra conversación. ¿Qué más quieres decir?", en: "Hmm, let's stick to our conversation. What else would you like to say?", reason: "looks like personal info" });
+    const lines = [
+      { es: "¡Claro! ¿Y algo más?", en: "Of course! Anything else?" },
+      { es: "Muy bien. ¿Te gustaría algo de comer?", en: "Great. Would you like something to eat?" },
+      { es: "Perfecto. ¡Gracias por venir!", en: "Perfect. Thanks for coming!" },
+    ];
+    const n = ((payload && payload.history) || []).filter((x) => x.role === "learner").length;
+    return new Promise((r) => setTimeout(() => r(Object.assign({ status: "ok" }, lines[Math.min(n, lines.length - 1)])), 500));
+  }
+
+  function openRoleplayPicker(lessonId) {
+    const m = RP(); if (!m) return;
+    const l = lessons.find((x) => x.id === lessonId) || null;
+    const items = m.SCENARIOS.map((s) => `<button class="row" data-act="rp-start" data-scn="${esc(s.id)}" data-lid="${esc(lessonId || "")}">
+      <span class="row__main"><span class="row__title">${s.emoji} ${esc(s.title)}</span><span class="row__meta">${esc(s.blurb)}</span></span>${icon("chevron", "icon--sm")}</button>`).join("");
+    sheet(`<div class="sheet__title">Pretend chat</div>
+      <div class="sheet__text">Have a short make-believe conversation in Spanish using ${l ? `“${esc(l.name)}”` : "your"} words. It stays on the scene you pick, and a grown-up can see the chat afterward. Pick a scene:</div>
+      <div class="list">${items}</div>
+      <button class="btn btn--secondary" data-act="close-sheet">Not now</button>`);
+  }
+
+  async function startRoleplay(scenarioId, lessonId) {
+    const m = RP(); if (!m) return;
+    const scenario = m.getScenario(scenarioId); if (!scenario) return;
+    closeSheet();
+    const l = lessonId ? lessons.find((x) => x.id === lessonId) : null;
+    const cards = l ? await store.cardsByIds(l.cardIds, ctx.contentOwnerId) : [];
+    const lessonWords = m.lessonWordList(cards);
+    const session = model.createRoleplaySession(
+      { userId: ctx.studierId, scenarioId, lessonId: l ? l.id : null, lessonName: l ? l.name : null }, now());
+    session.turns.push({ role: "ai", es: scenario.openingEs, en: scenario.openingEn, at: model.toIso(now()) });
+    rp = { session, scenario, lessonWords, busy: false, showEn: false, pendingUser: null, error: false, backLesson: l ? l.id : null };
+    await saveRoleplay();
+    renderRoleplay();
+  }
+
+  async function saveRoleplay() {
+    if (!rp) return;
+    try { await store.putRoleplaySession(rp.session); if (roleplaySynced()) scheduleSync(); } catch {}
+  }
+
+  function renderRoleplay() {
+    if (!rp) return renderLessons();
+    const m = RP(); const { session, scenario } = rp;
+    const left = m ? m.turnsRemaining(session) : 0;
+    const ended = session.status === "ended" || left <= 0;
+    const bubbles = session.turns.map((t) => {
+      if (t.role === "ai") {
+        return `<div class="rp-row rp-row--ai"><div class="rp-bubble rp-bubble--ai">
+          <span class="rp-es">${esc(t.es)}</span> <button class="toolbtn toolbtn--icon rp-say" data-act="speak" data-say="${esc(t.es)}" aria-label="Hear it">${icon("speaker", "icon--sm")}</button>
+          ${rp.showEn && t.en ? `<div class="rp-en">${esc(t.en)}</div>` : ""}</div></div>`;
+      }
+      if (t.moderation) return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--redirect">Message hidden — let's keep it to the scene.</div></div>`;
+      return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--me">${esc(t.es)}</div></div>`;
+    }).join("");
+    const pending = rp.pendingUser != null ? `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--me is-pending">${esc(rp.pendingUser)}</div></div>` : "";
+    const thinking = rp.busy ? `<div class="rp-row rp-row--ai"><div class="rp-bubble rp-bubble--ai"><span class="rp-dots"><i></i><i></i><i></i></span></div></div>` : "";
+    const footer = ended
+      ? `<div class="rp-ended"><div class="muted" style="text-align:center;margin-bottom:var(--s-4)">Nice chatting! That's the end of this one.</div>
+          <button class="btn btn--primary" data-act="rp-again" data-scn="${esc(scenario.id)}" data-lid="${esc(rp.backLesson || "")}">Chat again</button>
+          <button class="btn btn--secondary" data-act="rp-exit">Done</button></div>`
+      : `<form class="rp-compose" data-act="rp-send-form">
+          <input id="rp-input" class="rp-input" placeholder="Type in Spanish…" autocomplete="off" autocapitalize="sentences" ${rp.busy ? "disabled" : ""} maxlength="300">
+          <button type="button" class="rp-send" data-act="rp-send" ${rp.busy ? "disabled" : ""} aria-label="Send">${icon("chevron", "icon--sm")}</button>
+        </form>
+        ${rp.error ? `<div class="muted" style="text-align:center;margin-top:var(--s-3)">Couldn't reach the chat just now — try sending again.</div>` : ""}`;
+    mount(`<section class="screen rp-screen">
+      <div class="study-head__row rp-head">
+        <button class="study-head__exit" data-act="rp-exit" aria-label="Leave chat">${icon("close")}</button>
+        <span class="rp-head__title">${scenario.emoji} ${esc(scenario.title)}</span>
+        <button class="toolbtn rp-head__en ${rp.showEn ? "is-on" : ""}" data-act="rp-toggle-en" aria-pressed="${rp.showEn}">${rp.showEn ? "Hide English" : "Show English"}</button>
+      </div>
+      <div class="rp-sub muted">${esc(scenario.blurb)}${ended ? "" : ` · ${left} ${left === 1 ? "turn" : "turns"} left`}</div>
+      <div class="rp-thread" id="rp-thread">${bubbles}${pending}${thinking}</div>
+      ${footer}
+    </section>`);
+    const thread = document.getElementById("rp-thread"); if (thread) thread.scrollTop = thread.scrollHeight;
+    const inp = document.getElementById("rp-input"); if (inp && !rp.busy && !ended) inp.focus();
+  }
+
+  function roleplayToggleEn() { if (rp) { rp.showEn = !rp.showEn; renderRoleplay(); } }
+
+  async function sendRoleplay() {
+    if (!rp || rp.busy) return;
+    const m = RP(); if (!m) return;
+    const inp = document.getElementById("rp-input");
+    const text = m.clampInput(inp ? inp.value : "");
+    if (!text) { if (inp) inp.focus(); return; }
+    if (m.atTurnLimit(rp.session)) return endRoleplay();
+    rp.busy = true; rp.error = false; rp.pendingUser = text;
+    renderRoleplay();
+    let res = null;
+    try {
+      const ad = aiAdapter();
+      const payload = {
+        scenarioId: rp.scenario.id,
+        lessonWords: rp.lessonWords,
+        history: rp.session.turns.map((t) => ({ role: t.role, es: t.es })),
+        userText: text,
+      };
+      res = ad ? await ad.roleplayTurn(payload) : await mockRoleplayTurn(payload);
+    } catch { res = null; }
+    rp.pendingUser = null; rp.busy = false;
+    const at = model.toIso(now());
+    if (res && res.status === "redirect") {
+      // Store a REDACTED learner turn (never persist the off-policy / PII text).
+      rp.session.turns.push({ role: "learner", es: "[hidden]", en: null, at, moderation: { action: "redirect", reason: String(res.reason || "") } });
+      rp.session.turns.push({ role: "ai", es: res.es, en: res.en || null, at });
+    } else if (res && res.status === "ok") {
+      rp.session.turns.push({ role: "learner", es: text, en: null, at });
+      rp.session.turns.push({ role: "ai", es: res.es, en: res.en || null, at });
+    } else {
+      rp.error = true; renderRoleplay();
+      const i2 = document.getElementById("rp-input"); if (i2) { i2.value = text; i2.focus(); }
+      return;
+    }
+    if (m.atTurnLimit(rp.session)) { rp.session.status = "ended"; rp.session.endedAt = at; }
+    model.markUpdated(rp.session, now());
+    await saveRoleplay();
+    renderRoleplay();
+  }
+
+  async function endRoleplay() {
+    if (!rp) return;
+    rp.session.status = "ended"; rp.session.endedAt = model.toIso(now());
+    model.markUpdated(rp.session, now());
+    await saveRoleplay();
+    renderRoleplay();
+  }
+  function exitRoleplay() { const back = rp && rp.backLesson; rp = null; if (back) renderLessonDetail(back); else renderLessons(); }
+
+  // Parent/admin review: read-only list + transcript of past pretend chats.
+  async function renderRoleplayLog() {
+    const sessions = await store.listRoleplaySessions();
+    const users = await store.listUsers();
+    const nameOf = (trackId) => {
+      const base = model.trackBaseUser(trackId);
+      const u = users.find((x) => x.id === base);
+      return u ? (u.displayName || u.email) : "Learner";
+    };
+    const scnTitle = (id) => { const s = RP() && RP().getScenario(id); return s ? `${s.emoji} ${s.title}` : id; };
+    const rows = sessions.length ? sessions.map((s) => `<button class="row" data-act="rp-log-open" data-id="${esc(s.id)}">
+      <span class="row__main"><span class="row__title">${esc(nameOf(s.userId))} · ${esc(scnTitle(s.scenarioId))}</span>
+      <span class="row__meta">${esc(s.lessonName || "")}${s.lessonName ? " · " : ""}${esc(String(s.startedAt).slice(0, 10))} · ${s.turns.filter((t) => t.role === "learner").length} replies</span></span>${icon("chevron", "icon--sm")}</button>`).join("")
+      : `<div class="placeholder">${icon("me")}<div class="t-title">No pretend chats yet</div><div class="muted">Transcripts show up here once someone practices one.</div></div>`;
+    mount(`<section class="screen screen--tabbed">
+      <div class="study-head__row" style="margin-bottom:var(--s-6)">
+        <button class="study-head__exit" data-act="people">${icon("back")}</button>
+        <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Pretend-chat transcripts</span></div>
+      <div class="muted" style="margin-bottom:var(--s-5)">Every practice conversation, so you can see what was said.</div>
+      <div class="list">${rows}</div>
+    </section>${tabbar("me")}`);
+  }
+  async function renderRoleplayTranscript(id) {
+    const s = await store.getRoleplaySession(id); if (!s) return renderRoleplayLog();
+    const scn = RP() && RP().getScenario(s.scenarioId);
+    const bubbles = s.turns.map((t) => {
+      if (t.role === "ai") return `<div class="rp-row rp-row--ai"><div class="rp-bubble rp-bubble--ai"><span class="rp-es">${esc(t.es)}</span>${t.en ? `<div class="rp-en">${esc(t.en)}</div>` : ""}</div></div>`;
+      if (t.moderation) return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--redirect">Message hidden (${esc(t.moderation.reason || "off-topic")})</div></div>`;
+      return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--me">${esc(t.es)}</div></div>`;
+    }).join("");
+    mount(`<section class="screen rp-screen">
+      <div class="study-head__row rp-head">
+        <button class="study-head__exit" data-act="rp-log">${icon("back")}</button>
+        <span class="rp-head__title">${scn ? scn.emoji + " " + esc(scn.title) : esc(s.scenarioId)}</span><span style="width:40px"></span></div>
+      <div class="rp-sub muted">${esc(s.lessonName || "")}${s.lessonName ? " · " : ""}${esc(String(s.startedAt).slice(0, 10))}${s.status === "ended" ? " · ended" : ""}</div>
+      <div class="rp-thread">${bubbles}</div>
+    </section>`);
+  }
+
   // ---- direction, mode + bidirectional grading (Phase 3) -------------------
   const DIRS = ["es-en", "en-es"];
   const speakSupported = !!(self.SpeechRecognition || self.webkitSpeechRecognition);
@@ -517,6 +700,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${sections}
       ${tricky ? `<button class="row" data-act="practice-tricky" style="margin-top:var(--s-5)"><span class="row__main"><span class="row__title">${tricky} tricky words</span><span class="row__meta">Practice them in Tricky words</span></span>${icon("chevron", "icon--sm")}</button>` : ""}
       <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}" style="margin-top:var(--s-7)">Study this lesson</button>
+      ${roleplayOn() ? `<button class="btn btn--secondary" data-act="rp-open" data-id="${l.id}" style="margin-top:var(--s-4)">${icon("chat", "icon--sm")} Practice a pretend chat</button>` : ""}
     </section>${tabbar("lessons")}`);
   }
 
@@ -1297,6 +1481,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${admins.length ? `<div class="section-label"><span class="t-caps" style="opacity:.75">Admins</span></div><div class="list">${admins.map((u) => row(u, false)).join("")}</div>` : ""}
       <button class="btn btn--primary" data-act="invite-open" style="margin-top:var(--s-7)">Invite someone</button>
       <div class="muted" style="margin-top:var(--s-5)">Friends are fully separate users — their lessons and progress stay private.</div>
+      ${roleplayOn() ? `<div class="section-label" style="margin-top:var(--s-7)"><span class="t-caps" style="opacity:.75">Safety</span></div>
+      <div class="list"><button class="row" data-act="rp-log"><span class="row__main"><span class="row__title">Pretend-chat transcripts</span><span class="row__meta">Review every practice conversation</span></span>${icon("chevron", "icon--sm")}</button></div>` : ""}
     </section>${tabbar("me")}`);
   }
   let inviteRole = "user";
@@ -2032,6 +2218,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "delete-confirm") doDeleteAccount();
     else if (act === "account-restore") restoreAccount();
     else if (act === "install-dismiss") dismissInstall();
+    // Roleplay (R4)
+    else if (act === "rp-open") openRoleplayPicker(id);
+    else if (act === "rp-start" || act === "rp-again") startRoleplay(t.dataset.scn, t.dataset.lid || null);
+    else if (act === "rp-send") sendRoleplay();
+    else if (act === "rp-toggle-en") roleplayToggleEn();
+    else if (act === "rp-exit") exitRoleplay();
+    else if (act === "rp-log") renderRoleplayLog();
+    else if (act === "rp-log-open") renderRoleplayTranscript(id);
     // People + emulation (Phase 5d)
     else if (act === "people") renderPeople();
     else if (act === "invite-open") openInvite();
@@ -2049,6 +2243,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   app.addEventListener("submit", (e) => {
     if (e.target.id === "answer-form") { e.preventDefault(); check(); }
+    else if (e.target.dataset && e.target.dataset.act === "rp-send-form") { e.preventDefault(); sendRoleplay(); }
   });
 
   // ---- auth gate (Phase 5c) — INERT unless configured ----------------------
@@ -2135,7 +2330,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       const transport = self.SpanishFlashcardsSupabaseTransport.createSupabaseTransport({
         url: cfg.url, anonKey: cfg.anonKey, getAccessToken: () => auth.getAccessToken(),
       });
-      _sync = self.SpanishFlashcardsSync.createSync(store, transport);
+      // Sync the default collections; add roleplay transcripts only once the
+      // Supabase roleplay_sessions table + RLS exist (config.roleplay.synced),
+      // so the feature can't break sync before the migration is applied.
+      const syncCollections = roleplaySynced()
+        ? store.COLLECTIONS.concat([store.ROLEPLAY_COLLECTION])
+        : store.COLLECTIONS;
+      _sync = self.SpanishFlashcardsSync.createSync(store, transport, { collections: syncCollections });
       setInterval(scheduleSync, 60000);
       document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleSync(); });
     }

@@ -23,5 +23,10 @@
     // once the ANTHROPIC_API_KEY is set in Netlify; until then prod shows a "being set
     // up" state and localhost uses the dev mock.
     ai: { enabled: onProdHost, endpoint: "/.netlify/functions/ai" },
+    // Scripted roleplay (R4). Kept INERT (enabled:false) until reviewed on a real
+    // device — flip `enabled` to true to surface the "pretend chat" feature. `synced`
+    // stays false until the roleplay_sessions table + RLS are applied (db/migrations/
+    // 2026-11-13-roleplay.sql); transcripts persist locally until then.
+    roleplay: { enabled: false, synced: false },
   };
 })(typeof self !== "undefined" ? self : this);
