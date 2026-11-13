@@ -85,17 +85,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     return new Promise((res) => setTimeout(() =>
       res(`“${(card && card.back) || "that"}” is “${(card && card.front) || "…"}” in Spanish. Tip: picture it while you say the Spanish out loud a couple of times — it sticks faster.`), 700));
   }
+  // In-session AI caches (R1): reuse an explanation for the exact (card, answer,
+  //  direction) and an example per card, so re-opening the sheet doesn't re-call
+  //  Claude. Not persisted — a genuinely new wrong answer still fetches fresh.
+  const _explainCache = new Map();
+  const _exampleCache = new Map();
   async function openExplain(card, typed, dir) {
     if (!card) return;
     sheet(`<div class="sheet__title">Explain</div>
       <div id="explain-body" class="sheet__text" style="min-height:64px;display:flex;align-items:center;gap:var(--s-3)"><span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Thinking…</div>
       <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
-    let text = "";
-    const ad = aiAdapter();
-    try {
-      if (ad) { const r = await ad.explainAnswer(card, typed || null, dir || "es-en"); text = (r && r.text) || ""; }
-      else { text = await mockExplain(card); }
-    } catch { text = ""; }
+    const key = card.id + "|" + (dir || "es-en") + "|" + (typed || "");
+    let text = _explainCache.get(key) || "";
+    if (!text) {
+      const ad = aiAdapter();
+      try {
+        if (ad) { const r = await ad.explainAnswer(card, typed || null, dir || "es-en"); text = (r && r.text) || ""; }
+        else { text = await mockExplain(card); }
+      } catch { text = ""; }
+      if (text) _explainCache.set(key, text);
+    }
     const body = document.getElementById("explain-body");
     if (body) { body.style.display = "block"; body.textContent = text || "Couldn’t load an explanation just now — check your connection and try again."; }
   }
@@ -108,8 +117,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     sheet(`<div class="sheet__title">Example</div>
       <div id="ex-body" class="sheet__text" style="min-height:64px;display:flex;align-items:center;gap:var(--s-3)"><span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Writing one…</div>
       <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
-    let r = null; const ad = aiAdapter();
-    try { r = ad ? await ad.enrichCard(card) : await mockEnrich(card); } catch { r = null; }
+    let r = _exampleCache.get(card.id) || null;
+    if (!r) {
+      const ad = aiAdapter();
+      try { r = ad ? await ad.enrichCard(card) : await mockEnrich(card); } catch { r = null; }
+      if (r && r.es) _exampleCache.set(card.id, r);
+    }
     const body = document.getElementById("ex-body");
     if (!body) return;
     if (r && r.es) body.outerHTML = `<div class="sheet__text"><div class="t-title" style="margin-bottom:4px">${esc(r.es)} <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(r.es)}" aria-label="Hear it" style="vertical-align:middle">${icon("speaker", "icon--sm")}</button></div><div class="muted">${esc(r.en || "")}</div></div>`;
