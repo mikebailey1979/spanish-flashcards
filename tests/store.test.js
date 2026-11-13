@@ -141,3 +141,22 @@ test("selectDue returns unseen cards, and drops ones not yet due", async () => {
   assert.equal(due.length, 1);
   assert.notEqual(due[0].id, c1.id);
 });
+
+test("setUserRole promotes/demotes and guards the sole admin", async () => {
+  const { store, mike, aliyah } = await fixture(); // mike=admin, aliyah=user
+  assert.equal((await store.listAdmins()).length, 1);
+
+  // promote Aliyah → two admins
+  const a = await store.setUserRole(aliyah.id, "admin", T0);
+  assert.equal(a.role, "admin");
+  assert.equal((await store.listAdmins()).length, 2);
+
+  // now either admin may be demoted
+  await store.setUserRole(aliyah.id, "user", T0);
+  assert.equal((await store.getUser(aliyah.id)).role, "user");
+  assert.equal((await store.listAdmins()).length, 1);
+
+  // the last admin cannot be demoted
+  await assert.rejects(() => store.setUserRole(mike.id, "user", T0), /only admin/);
+  assert.equal((await store.getUser(mike.id)).role, "admin");
+});

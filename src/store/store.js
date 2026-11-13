@@ -65,6 +65,24 @@
     };
     /** @returns {Promise<User[]>} */
     const listUsers = async () => (await all("users")).filter(live);
+    /** @returns {Promise<User[]>} live admins */
+    const listAdmins = async () => (await all("users")).filter((u) => live(u) && u.role === "admin");
+    /**
+     * Change a user's role, enforcing the sole-admin guard: the last remaining
+     * admin can never be demoted (would lock everyone out of admin tools).
+     * @param {string} id @param {"admin"|"user"} role @param {number} [now] @returns {Promise<User>}
+     */
+    async function setUserRole(id, role, now) {
+      const u = await getUser(id);
+      if (!u) throw new Error("user not found: " + id);
+      if (u.role === "admin" && role !== "admin" && (await listAdmins()).length <= 1) {
+        throw new Error("cannot demote the only admin");
+      }
+      u.role = role === "admin" ? "admin" : "user";
+      model.markUpdated(u, now);
+      await putUser(u);
+      return u;
+    }
 
     // ---- content (owner-scoped) -----------------------------------------
     const putDeck = (d) => put("decks", d);
@@ -330,7 +348,7 @@
       ROLEPLAY_COLLECTION,
       adapter,
       // users
-      putUser, getUser, listUsers,
+      putUser, getUser, listUsers, listAdmins, setUserRole,
       // content
       putDeck, putLesson, putCard, listDecks, listLessons, listCards, cardsByIds,
       getLesson, getCard,

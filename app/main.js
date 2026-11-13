@@ -1398,7 +1398,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   //  Demo models deletion as a 4-week pending flag + restore (the designed window).
   //  Real tombstone + cross-device purge hooks account.deleteAccount at Phase 5c.
   function deletePendingDate() { try { return localStorage.getItem("aliyah.deletePending"); } catch { return null; } }
-  function openDeleteAccount() { if (deletePendingDate()) renderDeletePending(); else renderDeleteAccount(); }
+  async function openDeleteAccount() {
+    // Sole-admin guard: the last admin can't delete their account (would leave the
+    // app with no admin). Ask them to hand off admin first.
+    if (user.role === "admin" && (await store.listAdmins()).length <= 1) {
+      sheet(`<div class="sheet__title">You’re the only admin</div>
+        <div class="sheet__text">Make someone else an admin first (People with access → ⋯ → Make an admin), so the app still has an admin after you go.</div>
+        <button class="btn btn--secondary" data-act="close-sheet">OK</button>`);
+      return;
+    }
+    if (deletePendingDate()) renderDeletePending(); else renderDeleteAccount();
+  }
   function renderDeleteAccount() {
     mount(`<section class="screen screen--tabbed">
       <div class="study-head__row" style="margin-bottom:var(--s-6)">
@@ -1470,8 +1480,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const admins = users.filter((u) => u.role === "admin");
     const row = (u, isLearner) => `<div class="row" style="cursor:default">
       <span class="avatar" style="width:40px;height:40px;font-size:17px">${esc((u.displayName || u.email || "?").slice(0, 1).toUpperCase())}</span>
-      <span class="row__main" style="margin-left:var(--s-4)"><span class="row__title" style="-webkit-line-clamp:1">${esc(u.displayName || u.email)}</span><span class="row__meta">${u.role === "admin" ? "Admin" : "Learner"}</span></span>
-      ${isLearner && u.id !== user.id ? `<button class="chip" style="background:#fff;color:var(--btn-text)" data-act="study-as" data-id="${u.id}">Study as</button>` : ""}</div>`;
+      <span class="row__main" style="margin-left:var(--s-4)"><span class="row__title" style="-webkit-line-clamp:1">${esc(u.displayName || u.email)}${u.id === user.id ? " (you)" : ""}</span><span class="row__meta">${u.role === "admin" ? "Admin" : "Learner"}</span></span>
+      ${isLearner && u.id !== user.id ? `<button class="chip" style="background:#fff;color:var(--btn-text)" data-act="study-as" data-id="${u.id}">Study as</button>` : ""}
+      <button class="toolbtn toolbtn--icon" data-act="person-menu" data-id="${u.id}" aria-label="Options for ${esc(u.displayName || u.email)}">${icon("more")}</button></div>`;
     mount(`<section class="screen screen--tabbed">
       <div class="study-head__row" style="margin-bottom:var(--s-6)">
         <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
@@ -1513,6 +1524,40 @@ document.addEventListener("DOMContentLoaded", async () => {
     emu = { targetId, name: target.displayName || target.email || "Learner", countOwn: false };
     ctx = store.studyContext(user, { actingAsUserId: targetId, countEmulatedProgress: false });
     await refreshContent(); renderHome();
+  }
+  // Role management (R6): promote/demote, with the sole-admin guard (store-enforced).
+  async function openPersonMenu(id) {
+    const u = await store.getUser(id); if (!u) return;
+    closeSheet();
+    const isAdmin = u.role === "admin";
+    const sole = isAdmin && (await store.listAdmins()).length <= 1;
+    const name = esc(u.displayName || u.email || "This person");
+    const studyAsItem = !isAdmin && id !== user.id
+      ? `<button class="menu__item" data-act="study-as" data-id="${id}">${icon("eye")}<span>Study as ${name}</span></button>` : "";
+    const roleItem = isAdmin
+      ? `<button class="menu__item ${sole ? "" : "menu__item--danger"}" data-act="person-demote" data-id="${id}" ${sole ? "disabled" : ""}>${icon("me")}<span>Make a learner${sole ? " — only admin" : ""}</span></button>`
+      : `<button class="menu__item" data-act="person-promote" data-id="${id}">${icon("star")}<span>Make an admin</span></button>`;
+    sheet(`<div class="sheet__title">${name}${id === user.id ? " (you)" : ""}</div>
+      <div class="sheet__text">${esc(u.email || "")} · ${isAdmin ? "Admin" : "Learner"}</div>
+      <div class="menu">${studyAsItem}${roleItem}</div>
+      <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
+  }
+  async function setRole(id, role) {
+    try {
+      const u = await store.setUserRole(id, role, now());
+      if (id === user.id) { user.role = u.role; }
+      scheduleSync();
+    } catch (e) {
+      closeSheet();
+      const only = /only admin/.test(String((e && e.message) || ""));
+      sheet(`<div class="sheet__title">Can't do that</div>
+        <div class="sheet__text">${only ? "This is the only admin — make someone else an admin first." : "Couldn’t update this person’s role. Try again."}</div>
+        <button class="btn btn--secondary" data-act="close-sheet">OK</button>`);
+      return;
+    }
+    closeSheet();
+    // Demoting yourself removes admin access → drop back to the Me screen.
+    if (id === user.id && role !== "admin") renderMe(); else renderPeople();
   }
   async function exitEmulation() {
     emu = null; ctx = store.studyContext(user); await refreshContent(); renderMe();
@@ -2226,6 +2271,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "invite-role") inviteRoleSet(t.dataset.val);
     else if (act === "invite-send") doInvite();
     else if (act === "study-as") studyAs(id);
+    else if (act === "person-menu") openPersonMenu(id);
+    else if (act === "person-promote") setRole(id, "admin");
+    else if (act === "person-demote") setRole(id, "user");
     else if (act === "emu-options") openEmuOptions();
     else if (act === "emu-exit") exitEmulation();
     else if (act === "emu-count") toggleCountOwn();
