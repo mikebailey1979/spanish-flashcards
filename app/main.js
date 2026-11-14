@@ -85,17 +85,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     return new Promise((res) => setTimeout(() =>
       res(`“${(card && card.back) || "that"}” is “${(card && card.front) || "…"}” in Spanish. Tip: picture it while you say the Spanish out loud a couple of times — it sticks faster.`), 700));
   }
+  // In-session AI caches (R1): reuse an explanation for the exact (card, answer,
+  //  direction) and an example per card, so re-opening the sheet doesn't re-call
+  //  Claude. Not persisted — a genuinely new wrong answer still fetches fresh.
+  const _explainCache = new Map();
+  const _exampleCache = new Map();
   async function openExplain(card, typed, dir) {
     if (!card) return;
     sheet(`<div class="sheet__title">Explain</div>
       <div id="explain-body" class="sheet__text" style="min-height:64px;display:flex;align-items:center;gap:var(--s-3)"><span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Thinking…</div>
       <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
-    let text = "";
-    const ad = aiAdapter();
-    try {
-      if (ad) { const r = await ad.explainAnswer(card, typed || null, dir || "es-en"); text = (r && r.text) || ""; }
-      else { text = await mockExplain(card); }
-    } catch { text = ""; }
+    const key = card.id + "|" + (dir || "es-en") + "|" + (typed || "");
+    let text = _explainCache.get(key) || "";
+    if (!text) {
+      const ad = aiAdapter();
+      try {
+        if (ad) { const r = await ad.explainAnswer(card, typed || null, dir || "es-en"); text = (r && r.text) || ""; }
+        else { text = await mockExplain(card); }
+      } catch { text = ""; }
+      if (text) _explainCache.set(key, text);
+    }
     const body = document.getElementById("explain-body");
     if (body) { body.style.display = "block"; body.textContent = text || "Couldn’t load an explanation just now — check your connection and try again."; }
   }
@@ -108,8 +117,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     sheet(`<div class="sheet__title">Example</div>
       <div id="ex-body" class="sheet__text" style="min-height:64px;display:flex;align-items:center;gap:var(--s-3)"><span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Writing one…</div>
       <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
-    let r = null; const ad = aiAdapter();
-    try { r = ad ? await ad.enrichCard(card) : await mockEnrich(card); } catch { r = null; }
+    let r = _exampleCache.get(card.id) || null;
+    if (!r) {
+      const ad = aiAdapter();
+      try { r = ad ? await ad.enrichCard(card) : await mockEnrich(card); } catch { r = null; }
+      if (r && r.es) _exampleCache.set(card.id, r);
+    }
     const body = document.getElementById("ex-body");
     if (!body) return;
     if (r && r.es) body.outerHTML = `<div class="sheet__text"><div class="t-title" style="margin-bottom:4px">${esc(r.es)} <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(r.es)}" aria-label="Hear it" style="vertical-align:middle">${icon("speaker", "icon--sm")}</button></div><div class="muted">${esc(r.en || "")}</div></div>`;
@@ -229,6 +242,189 @@ document.addEventListener("DOMContentLoaded", async () => {
     const score = Math.round(scores.pronunciation || scores.accuracy || 0);
     if (body) body.innerHTML = `<div class="t-hero" style="font-size:44px">${score}<span style="opacity:.6;font-size:18px">/100</span></div><div id="pron-coach" class="muted" style="margin-top:6px">${SPIN} a tip…</div>`;
     try { const ad = aiAdapter(); const c = ad ? await ad.coachPronunciation(word, scores) : { text: "" }; const el = document.getElementById("pron-coach"); if (el) el.textContent = c.text || (score >= 85 ? "¡Muy bien! That sounded great." : "Nice try — say it a little slower and clearer next time."); } catch {}
+  }
+
+  // ---- Roleplay (R4): scripted "pretend chat" ----------------------------
+  //  A bounded, fixed-scenario Spanish practice conversation using a lesson's
+  //  words. Typed-only (v1). Every turn is moderated SERVER-SIDE (her input before
+  //  the model, the reply before it's shown); the client just renders + saves the
+  //  transcript. Kept behind AliyahConfig.roleplay.enabled (inert until reviewed).
+  function roleplayOn() { return !!(self.AliyahConfig && self.AliyahConfig.roleplay && self.AliyahConfig.roleplay.enabled); }
+  function roleplaySynced() { return !!(self.AliyahConfig && self.AliyahConfig.roleplay && self.AliyahConfig.roleplay.synced); }
+  function RP() { return self.SpanishFlashcardsRoleplay || null; }
+  let rp = null; // active chat: { session, scenario, lessonWords, busy, showEn, pendingUser, error, backLesson }
+
+  function mockRoleplayTurn(payload) {
+    const t = ((payload && payload.userText) || "").toLowerCase();
+    if (RP() && RP().looksLikePII(t))
+      return Promise.resolve({ status: "redirect", es: "Mmm, mejor sigamos con nuestra conversación. ¿Qué más quieres decir?", en: "Hmm, let's stick to our conversation. What else would you like to say?", reason: "looks like personal info" });
+    const lines = [
+      { es: "¡Claro! ¿Y algo más?", en: "Of course! Anything else?" },
+      { es: "Muy bien. ¿Te gustaría algo de comer?", en: "Great. Would you like something to eat?" },
+      { es: "Perfecto. ¡Gracias por venir!", en: "Perfect. Thanks for coming!" },
+    ];
+    const n = ((payload && payload.history) || []).filter((x) => x.role === "learner").length;
+    return new Promise((r) => setTimeout(() => r(Object.assign({ status: "ok" }, lines[Math.min(n, lines.length - 1)])), 500));
+  }
+
+  function openRoleplayPicker(lessonId) {
+    const m = RP(); if (!m) return;
+    const l = lessons.find((x) => x.id === lessonId) || null;
+    const items = m.SCENARIOS.map((s) => `<button class="row" data-act="rp-start" data-scn="${esc(s.id)}" data-lid="${esc(lessonId || "")}">
+      <span class="row__main"><span class="row__title">${s.emoji} ${esc(s.title)}</span><span class="row__meta">${esc(s.blurb)}</span></span>${icon("chevron", "icon--sm")}</button>`).join("");
+    sheet(`<div class="sheet__title">Pretend chat</div>
+      <div class="sheet__text">Have a short make-believe conversation in Spanish using ${l ? `“${esc(l.name)}”` : "your"} words. It stays on the scene you pick, and a grown-up can see the chat afterward. Pick a scene:</div>
+      <div class="list">${items}</div>
+      <button class="btn btn--secondary" data-act="close-sheet">Not now</button>`);
+  }
+
+  async function startRoleplay(scenarioId, lessonId) {
+    const m = RP(); if (!m) return;
+    const scenario = m.getScenario(scenarioId); if (!scenario) return;
+    closeSheet();
+    const l = lessonId ? lessons.find((x) => x.id === lessonId) : null;
+    const cards = l ? await store.cardsByIds(l.cardIds, ctx.contentOwnerId) : [];
+    const lessonWords = m.lessonWordList(cards);
+    const session = model.createRoleplaySession(
+      { userId: ctx.studierId, scenarioId, lessonId: l ? l.id : null, lessonName: l ? l.name : null }, now());
+    session.turns.push({ role: "ai", es: scenario.openingEs, en: scenario.openingEn, at: model.toIso(now()) });
+    rp = { session, scenario, lessonWords, busy: false, showEn: false, pendingUser: null, error: false, backLesson: l ? l.id : null };
+    await saveRoleplay();
+    renderRoleplay();
+  }
+
+  async function saveRoleplay() {
+    if (!rp) return;
+    try { await store.putRoleplaySession(rp.session); if (roleplaySynced()) scheduleSync(); } catch {}
+  }
+
+  function renderRoleplay() {
+    if (!rp) return renderLessons();
+    const m = RP(); const { session, scenario } = rp;
+    const left = m ? m.turnsRemaining(session) : 0;
+    const ended = session.status === "ended" || left <= 0;
+    const bubbles = session.turns.map((t) => {
+      if (t.role === "ai") {
+        return `<div class="rp-row rp-row--ai"><div class="rp-bubble rp-bubble--ai">
+          <span class="rp-es">${esc(t.es)}</span> <button class="toolbtn toolbtn--icon rp-say" data-act="speak" data-say="${esc(t.es)}" aria-label="Hear it">${icon("speaker", "icon--sm")}</button>
+          ${rp.showEn && t.en ? `<div class="rp-en">${esc(t.en)}</div>` : ""}</div></div>`;
+      }
+      if (t.moderation) return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--redirect">Message hidden — let's keep it to the scene.</div></div>`;
+      return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--me">${esc(t.es)}</div></div>`;
+    }).join("");
+    const pending = rp.pendingUser != null ? `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--me is-pending">${esc(rp.pendingUser)}</div></div>` : "";
+    const thinking = rp.busy ? `<div class="rp-row rp-row--ai"><div class="rp-bubble rp-bubble--ai"><span class="rp-dots"><i></i><i></i><i></i></span></div></div>` : "";
+    const footer = ended
+      ? `<div class="rp-ended"><div class="muted" style="text-align:center;margin-bottom:var(--s-4)">Nice chatting! That's the end of this one.</div>
+          <button class="btn btn--primary" data-act="rp-again" data-scn="${esc(scenario.id)}" data-lid="${esc(rp.backLesson || "")}">Chat again</button>
+          <button class="btn btn--secondary" data-act="rp-exit">Done</button></div>`
+      : `<form class="rp-compose" data-act="rp-send-form">
+          <input id="rp-input" class="rp-input" placeholder="Type in Spanish…" autocomplete="off" autocapitalize="sentences" ${rp.busy ? "disabled" : ""} maxlength="300">
+          <button type="button" class="rp-send" data-act="rp-send" ${rp.busy ? "disabled" : ""} aria-label="Send">${icon("chevron", "icon--sm")}</button>
+        </form>
+        ${rp.error ? `<div class="muted" style="text-align:center;margin-top:var(--s-3)">Couldn't reach the chat just now — try sending again.</div>` : ""}`;
+    mount(`<section class="screen rp-screen">
+      <div class="study-head__row rp-head">
+        <button class="study-head__exit" data-act="rp-exit" aria-label="Leave chat">${icon("close")}</button>
+        <span class="rp-head__title">${scenario.emoji} ${esc(scenario.title)}</span>
+        <button class="toolbtn rp-head__en ${rp.showEn ? "is-on" : ""}" data-act="rp-toggle-en" aria-pressed="${rp.showEn}">${rp.showEn ? "Hide English" : "Show English"}</button>
+      </div>
+      <div class="rp-sub muted">${esc(scenario.blurb)}${ended ? "" : ` · ${left} ${left === 1 ? "turn" : "turns"} left`}</div>
+      <div class="rp-thread" id="rp-thread">${bubbles}${pending}${thinking}</div>
+      ${footer}
+    </section>`);
+    const thread = document.getElementById("rp-thread"); if (thread) thread.scrollTop = thread.scrollHeight;
+    const inp = document.getElementById("rp-input"); if (inp && !rp.busy && !ended) inp.focus();
+  }
+
+  function roleplayToggleEn() { if (rp) { rp.showEn = !rp.showEn; renderRoleplay(); } }
+
+  async function sendRoleplay() {
+    if (!rp || rp.busy) return;
+    const m = RP(); if (!m) return;
+    const inp = document.getElementById("rp-input");
+    const text = m.clampInput(inp ? inp.value : "");
+    if (!text) { if (inp) inp.focus(); return; }
+    if (m.atTurnLimit(rp.session)) return endRoleplay();
+    rp.busy = true; rp.error = false; rp.pendingUser = text;
+    renderRoleplay();
+    let res = null;
+    try {
+      const ad = aiAdapter();
+      const payload = {
+        scenarioId: rp.scenario.id,
+        lessonWords: rp.lessonWords,
+        history: rp.session.turns.map((t) => ({ role: t.role, es: t.es })),
+        userText: text,
+      };
+      res = ad ? await ad.roleplayTurn(payload) : await mockRoleplayTurn(payload);
+    } catch { res = null; }
+    rp.pendingUser = null; rp.busy = false;
+    const at = model.toIso(now());
+    if (res && res.status === "redirect") {
+      // Store a REDACTED learner turn (never persist the off-policy / PII text).
+      rp.session.turns.push({ role: "learner", es: "[hidden]", en: null, at, moderation: { action: "redirect", reason: String(res.reason || "") } });
+      rp.session.turns.push({ role: "ai", es: res.es, en: res.en || null, at });
+    } else if (res && res.status === "ok") {
+      rp.session.turns.push({ role: "learner", es: text, en: null, at });
+      rp.session.turns.push({ role: "ai", es: res.es, en: res.en || null, at });
+    } else {
+      rp.error = true; renderRoleplay();
+      const i2 = document.getElementById("rp-input"); if (i2) { i2.value = text; i2.focus(); }
+      return;
+    }
+    if (m.atTurnLimit(rp.session)) { rp.session.status = "ended"; rp.session.endedAt = at; }
+    model.markUpdated(rp.session, now());
+    await saveRoleplay();
+    renderRoleplay();
+  }
+
+  async function endRoleplay() {
+    if (!rp) return;
+    rp.session.status = "ended"; rp.session.endedAt = model.toIso(now());
+    model.markUpdated(rp.session, now());
+    await saveRoleplay();
+    renderRoleplay();
+  }
+  function exitRoleplay() { const back = rp && rp.backLesson; rp = null; if (back) renderLessonDetail(back); else renderLessons(); }
+
+  // Parent/admin review: read-only list + transcript of past pretend chats.
+  async function renderRoleplayLog() {
+    const sessions = await store.listRoleplaySessions();
+    const users = await store.listUsers();
+    const nameOf = (trackId) => {
+      const base = model.trackBaseUser(trackId);
+      const u = users.find((x) => x.id === base);
+      return u ? (u.displayName || u.email) : "Learner";
+    };
+    const scnTitle = (id) => { const s = RP() && RP().getScenario(id); return s ? `${s.emoji} ${s.title}` : id; };
+    const rows = sessions.length ? sessions.map((s) => `<button class="row" data-act="rp-log-open" data-id="${esc(s.id)}">
+      <span class="row__main"><span class="row__title">${esc(nameOf(s.userId))} · ${esc(scnTitle(s.scenarioId))}</span>
+      <span class="row__meta">${esc(s.lessonName || "")}${s.lessonName ? " · " : ""}${esc(String(s.startedAt).slice(0, 10))} · ${s.turns.filter((t) => t.role === "learner").length} replies</span></span>${icon("chevron", "icon--sm")}</button>`).join("")
+      : `<div class="placeholder">${icon("me")}<div class="t-title">No pretend chats yet</div><div class="muted">Transcripts show up here once someone practices one.</div></div>`;
+    mount(`<section class="screen screen--tabbed">
+      <div class="study-head__row" style="margin-bottom:var(--s-6)">
+        <button class="study-head__exit" data-act="people">${icon("back")}</button>
+        <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Pretend-chat transcripts</span></div>
+      <div class="muted" style="margin-bottom:var(--s-5)">Every practice conversation, so you can see what was said.</div>
+      <div class="list">${rows}</div>
+    </section>${tabbar("me")}`);
+  }
+  async function renderRoleplayTranscript(id) {
+    const s = await store.getRoleplaySession(id); if (!s) return renderRoleplayLog();
+    const scn = RP() && RP().getScenario(s.scenarioId);
+    const bubbles = s.turns.map((t) => {
+      if (t.role === "ai") return `<div class="rp-row rp-row--ai"><div class="rp-bubble rp-bubble--ai"><span class="rp-es">${esc(t.es)}</span>${t.en ? `<div class="rp-en">${esc(t.en)}</div>` : ""}</div></div>`;
+      if (t.moderation) return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--redirect">Message hidden (${esc(t.moderation.reason || "off-topic")})</div></div>`;
+      return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--me">${esc(t.es)}</div></div>`;
+    }).join("");
+    mount(`<section class="screen rp-screen">
+      <div class="study-head__row rp-head">
+        <button class="study-head__exit" data-act="rp-log">${icon("back")}</button>
+        <span class="rp-head__title">${scn ? scn.emoji + " " + esc(scn.title) : esc(s.scenarioId)}</span><span style="width:40px"></span></div>
+      <div class="rp-sub muted">${esc(s.lessonName || "")}${s.lessonName ? " · " : ""}${esc(String(s.startedAt).slice(0, 10))}${s.status === "ended" ? " · ended" : ""}</div>
+      <div class="rp-thread">${bubbles}</div>
+    </section>`);
   }
 
   // ---- direction, mode + bidirectional grading (Phase 3) -------------------
@@ -517,6 +713,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${sections}
       ${tricky ? `<button class="row" data-act="practice-tricky" style="margin-top:var(--s-5)"><span class="row__main"><span class="row__title">${tricky} tricky words</span><span class="row__meta">Practice them in Tricky words</span></span>${icon("chevron", "icon--sm")}</button>` : ""}
       <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}" style="margin-top:var(--s-7)">Study this lesson</button>
+      ${roleplayOn() ? `<button class="btn btn--secondary" data-act="rp-open" data-id="${l.id}" style="margin-top:var(--s-4)">${icon("chat", "icon--sm")} Practice a pretend chat</button>` : ""}
     </section>${tabbar("lessons")}`);
   }
 
@@ -876,25 +1073,44 @@ document.addEventListener("DOMContentLoaded", async () => {
     app.querySelectorAll(".toast").forEach((n) => n.remove()); renderLessonDetail(id);
   }
   async function renderRecentlyDeleted() {
-    const deleted = await store.listDeletedLessons(DEMO_ID);
-    const rows = deleted.map((l) => {
-      const daysLeft = Math.max(0, 7 - Math.floor((now() - Date.parse(l.deletedAt)) / 86400000));
+    const owner = ctx.contentOwnerId;
+    const deleted = await store.listDeletedLessons(owner);
+    const deletedWords = await store.listDeletedCards(owner);
+    const daysLeftOf = (iso) => Math.max(0, 7 - Math.floor((now() - Date.parse(iso)) / 86400000));
+    const lessonRows = deleted.map((l) => {
+      const daysLeft = daysLeftOf(l.deletedAt);
       return `<div class="row" style="cursor:default"><span class="row__main">
         <span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span>
         <span class="row__meta">${l.cardIds.length} words · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left</span></span>
         <button class="chip" style="background:#fff;color:var(--btn-text)" data-act="lesson-restore" data-id="${l.id}">Restore</button></div>`;
     }).join("");
+    const wordRows = deletedWords.map((c) => {
+      const daysLeft = daysLeftOf(c.deletedAt);
+      const l = lessons.find((x) => x.id === c.deletedFromLessonId);
+      return `<div class="row" style="cursor:default"><span class="row__main">
+        <span class="row__title" style="-webkit-line-clamp:1">${esc(c.front)} · ${esc(c.back)}</span>
+        <span class="row__meta">${l ? esc(l.name) + " · " : ""}${daysLeft} day${daysLeft === 1 ? "" : "s"} left</span></span>
+        <button class="chip" style="background:#fff;color:var(--btn-text)" data-act="word-restore" data-id="${c.id}">Restore</button></div>`;
+    }).join("");
+    const empty = !deleted.length && !deletedWords.length;
     mount(`<section class="screen screen--tabbed">
       <div class="study-head__row" style="margin-bottom:var(--s-7)">
         <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Recently deleted</span>
       </div>
-      <div class="muted" style="margin-bottom:var(--s-5)">Lessons stay here for 7 days, then they are gone for good. Restoring brings back every word and your progress on it, on all your devices.</div>
-      ${deleted.length ? `<div class="list">${rows}</div>`
-        : `<div class="placeholder">${icon("restore")}<div class="t-title">Nothing here</div><div class="muted">Deleted lessons show up here for 7 days.</div></div>`}
+      <div class="muted" style="margin-bottom:var(--s-5)">Deleted lessons and words stay here for 7 days, then they are gone for good. Restoring brings back the word and your progress on it, on all your devices.</div>
+      ${deleted.length ? `<div class="section-label"><span class="t-caps" style="opacity:.75">Lessons</span></div><div class="list">${lessonRows}</div>` : ""}
+      ${deletedWords.length ? `<div class="section-label" ${deleted.length ? 'style="margin-top:var(--s-6)"' : ""}><span class="t-caps" style="opacity:.75">Words</span></div><div class="list">${wordRows}</div>` : ""}
+      ${empty ? `<div class="placeholder">${icon("restore")}<div class="t-title">Nothing here</div><div class="muted">Deleted lessons and words show up here for 7 days.</div></div>` : ""}
     </section>${tabbar("me")}`);
   }
   async function restoreFromList(id) { await store.restoreLesson(id, now()); await refreshContent(); renderRecentlyDeleted(); }
+  async function restoreDeletedWord(cardId) {
+    const deleted = await store.listDeletedCards(ctx.contentOwnerId);
+    const c = deleted.find((x) => x.id === cardId); if (!c) return;
+    await store.restoreCard(cardId, c.deletedFromLessonId, now());
+    await refreshContent(); renderRecentlyDeleted();
+  }
 
   // ---- merge + split (Phase 4c) -------------------------------------------
   let mergeState = null;
@@ -1161,7 +1377,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="list">
         ${settingRow("Sync", "All changes saved", "your-data")}
         ${settingRow("Export my data", "Save everything to a file", "export-data")}
-        ${settingRow("Recently deleted", "Restore lessons within 7 days", "recently-deleted")}
+        ${settingRow("Recently deleted", "Restore lessons and words within 7 days", "recently-deleted")}
       </div>
       ${user.role === "admin" ? `<div class="section-label"><span class="t-caps" style="opacity:.75">People</span></div>
       <div class="list">${settingRow("People with access", "Invite, roles, study as", "people")}</div>` : ""}
@@ -1214,7 +1430,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   //  Demo models deletion as a 4-week pending flag + restore (the designed window).
   //  Real tombstone + cross-device purge hooks account.deleteAccount at Phase 5c.
   function deletePendingDate() { try { return localStorage.getItem("aliyah.deletePending"); } catch { return null; } }
-  function openDeleteAccount() { if (deletePendingDate()) renderDeletePending(); else renderDeleteAccount(); }
+  async function openDeleteAccount() {
+    // Sole-admin guard: the last admin can't delete their account (would leave the
+    // app with no admin). Ask them to hand off admin first.
+    if (user.role === "admin" && (await store.listAdmins()).length <= 1) {
+      sheet(`<div class="sheet__title">You’re the only admin</div>
+        <div class="sheet__text">Make someone else an admin first (People with access → ⋯ → Make an admin), so the app still has an admin after you go.</div>
+        <button class="btn btn--secondary" data-act="close-sheet">OK</button>`);
+      return;
+    }
+    if (deletePendingDate()) renderDeletePending(); else renderDeleteAccount();
+  }
   function renderDeleteAccount() {
     mount(`<section class="screen screen--tabbed">
       <div class="study-head__row" style="margin-bottom:var(--s-6)">
@@ -1286,8 +1512,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const admins = users.filter((u) => u.role === "admin");
     const row = (u, isLearner) => `<div class="row" style="cursor:default">
       <span class="avatar" style="width:40px;height:40px;font-size:17px">${esc((u.displayName || u.email || "?").slice(0, 1).toUpperCase())}</span>
-      <span class="row__main" style="margin-left:var(--s-4)"><span class="row__title" style="-webkit-line-clamp:1">${esc(u.displayName || u.email)}</span><span class="row__meta">${u.role === "admin" ? "Admin" : "Learner"}</span></span>
-      ${isLearner && u.id !== user.id ? `<button class="chip" style="background:#fff;color:var(--btn-text)" data-act="study-as" data-id="${u.id}">Study as</button>` : ""}</div>`;
+      <span class="row__main" style="margin-left:var(--s-4)"><span class="row__title" style="-webkit-line-clamp:1">${esc(u.displayName || u.email)}${u.id === user.id ? " (you)" : ""}</span><span class="row__meta">${u.role === "admin" ? "Admin" : "Learner"}</span></span>
+      ${isLearner && u.id !== user.id ? `<button class="chip" style="background:#fff;color:var(--btn-text)" data-act="study-as" data-id="${u.id}">Study as</button>` : ""}
+      <button class="toolbtn toolbtn--icon" data-act="person-menu" data-id="${u.id}" aria-label="Options for ${esc(u.displayName || u.email)}">${icon("more")}</button></div>`;
     mount(`<section class="screen screen--tabbed">
       <div class="study-head__row" style="margin-bottom:var(--s-6)">
         <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
@@ -1297,6 +1524,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${admins.length ? `<div class="section-label"><span class="t-caps" style="opacity:.75">Admins</span></div><div class="list">${admins.map((u) => row(u, false)).join("")}</div>` : ""}
       <button class="btn btn--primary" data-act="invite-open" style="margin-top:var(--s-7)">Invite someone</button>
       <div class="muted" style="margin-top:var(--s-5)">Friends are fully separate users — their lessons and progress stay private.</div>
+      ${roleplayOn() ? `<div class="section-label" style="margin-top:var(--s-7)"><span class="t-caps" style="opacity:.75">Safety</span></div>
+      <div class="list"><button class="row" data-act="rp-log"><span class="row__main"><span class="row__title">Pretend-chat transcripts</span><span class="row__meta">Review every practice conversation</span></span>${icon("chevron", "icon--sm")}</button></div>` : ""}
     </section>${tabbar("me")}`);
   }
   let inviteRole = "user";
@@ -1328,6 +1557,40 @@ document.addEventListener("DOMContentLoaded", async () => {
     ctx = store.studyContext(user, { actingAsUserId: targetId, countEmulatedProgress: false });
     await refreshContent(); renderHome();
   }
+  // Role management (R6): promote/demote, with the sole-admin guard (store-enforced).
+  async function openPersonMenu(id) {
+    const u = await store.getUser(id); if (!u) return;
+    closeSheet();
+    const isAdmin = u.role === "admin";
+    const sole = isAdmin && (await store.listAdmins()).length <= 1;
+    const name = esc(u.displayName || u.email || "This person");
+    const studyAsItem = !isAdmin && id !== user.id
+      ? `<button class="menu__item" data-act="study-as" data-id="${id}">${icon("eye")}<span>Study as ${name}</span></button>` : "";
+    const roleItem = isAdmin
+      ? `<button class="menu__item ${sole ? "" : "menu__item--danger"}" data-act="person-demote" data-id="${id}" ${sole ? "disabled" : ""}>${icon("me")}<span>Make a learner${sole ? " — only admin" : ""}</span></button>`
+      : `<button class="menu__item" data-act="person-promote" data-id="${id}">${icon("star")}<span>Make an admin</span></button>`;
+    sheet(`<div class="sheet__title">${name}${id === user.id ? " (you)" : ""}</div>
+      <div class="sheet__text">${esc(u.email || "")} · ${isAdmin ? "Admin" : "Learner"}</div>
+      <div class="menu">${studyAsItem}${roleItem}</div>
+      <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
+  }
+  async function setRole(id, role) {
+    try {
+      const u = await store.setUserRole(id, role, now());
+      if (id === user.id) { user.role = u.role; }
+      scheduleSync();
+    } catch (e) {
+      closeSheet();
+      const only = /only admin/.test(String((e && e.message) || ""));
+      sheet(`<div class="sheet__title">Can't do that</div>
+        <div class="sheet__text">${only ? "This is the only admin — make someone else an admin first." : "Couldn’t update this person’s role. Try again."}</div>
+        <button class="btn btn--secondary" data-act="close-sheet">OK</button>`);
+      return;
+    }
+    closeSheet();
+    // Demoting yourself removes admin access → drop back to the Me screen.
+    if (id === user.id && role !== "admin") renderMe(); else renderPeople();
+  }
   async function exitEmulation() {
     emu = null; ctx = store.studyContext(user); await refreshContent(); renderMe();
   }
@@ -1347,12 +1610,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     openEmuOptions();
   }
 
-  function renderPlaceholder(tab, title) {
-    mount(`<section class="screen screen--tabbed"><h1 class="t-h1">${esc(title)}</h1>
-      <div class="placeholder">${icon(tab === "me" ? "me" : "add")}<div class="t-title">Coming in a later phase</div>
-        <div class="muted">This screen is designed and specced — not built yet.</div></div>
-    </section>${tabbar(tab === "me" ? "me" : "home")}`);
-  }
 
   // ---- Phase 6: AI capture (photo -> OCR -> review -> lesson) --------------
   //  6a: C1 add-pages + C2 reading, against a MOCK proposer. The real
@@ -1360,6 +1617,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   //  segmentation review (C3) + word HITL (C4/H3) + import commit land in 6b/6c.
   let capture = null;                 // { pages: [{id, dataUrl}], proposal }
   let _capInputs = null;
+  // Persist an in-progress scan (R5) so a reload/force-quit can resume it. LOCAL-ONLY
+  // (the `captureDrafts` IndexedDB store is never synced — a half-scan shouldn't leave
+  // the device). Keyed by the signed-in account; fire-and-forget so it never blocks UI.
+  const captureKey = () => (user && user.id) || DEMO_ID;
+  function persistCapture() {
+    const key = captureKey();
+    try {
+      if (capture && capture.pages && capture.pages.length) store.adapter.put("captureDrafts", { id: key, capture, updatedAt: now() });
+      else store.adapter.remove("captureDrafts", key);
+    } catch {}
+  }
+  function clearCapture() { capture = null; persistCapture(); }
+  async function restoreCaptureDraft() {
+    try {
+      const rec = await store.adapter.get("captureDrafts", captureKey());
+      if (rec && rec.capture && rec.capture.pages && rec.capture.pages.length) {
+        if (!rec.updatedAt || now() - rec.updatedAt < 86400000) capture = rec.capture;   // resume drafts < 24h old
+        else await store.adapter.remove("captureDrafts", captureKey());
+      }
+    } catch {}
+  }
   function capInputs() {
     if (_capInputs) return _capInputs;
     const make = (useCamera) => {
@@ -1413,6 +1691,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderCapture() {
     if (!capture) capture = { pages: [], proposal: null };
+    persistCapture();                 // pages added/removed → save the draft
     const pages = capture.pages;
     const thumb = (p, i) => `<div style="position:relative;aspect-ratio:3/4;border-radius:var(--s-3);overflow:hidden;background:rgba(128,128,128,.18)">
       ${p.dataUrl ? `<img src="${p.dataUrl}" alt="Page ${i + 1}" style="width:100%;height:100%;object-fit:cover">` : ""}
@@ -1483,6 +1762,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     return lo === hi ? `Page ${lo}` : `Pages ${lo}–${hi}`;
   }
   function renderCaptureFound() {
+    persistCapture();                 // proposal settled → save the draft
     const lessons = (capture.proposal && capture.proposal.lessons) || [];
     const card = (l, i) => {
       const w = propWords(l);
@@ -1588,6 +1868,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderWordReview();
   }
   function renderWordReview() {
+    persistCapture();                 // word-review edits → save the draft
     const prop = capture.proposal, R = capture.review, l = prop.lessons[R.idx];
     const cats = l.sections.map((s) => s.cat);
     const filterChips = ["__all__", ...cats].map((c) => {
@@ -1665,8 +1946,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       R.saved.push({ name: l.name, count: res.cardCount });
     }
     R.idx++; R.filter = "__all__";
-    if (R.idx >= capture.proposal.lessons.length) { await refreshContent(); renderCaptureSaved(); }
-    else renderWordReview();
+    if (R.idx >= capture.proposal.lessons.length) {
+      await refreshContent();
+      try { await store.adapter.remove("captureDrafts", captureKey()); } catch {}  // scan imported — don't resume it
+      renderCaptureSaved();
+    } else renderWordReview();
   }
   function renderCaptureSaved() {
     const saved = capture.review.saved, total = saved.reduce((a, s) => a + s.count, 0);
@@ -1945,7 +2229,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "cap-add-cam") capInputs().cam.click();
     else if (act === "cap-remove") { if (capture) { capture.pages = capture.pages.filter((p) => p.id !== id); renderCapture(); } }
     else if (act === "cap-read") renderReading();
-    else if (act === "cap-cancel") { capture = null; renderHome(); }
+    else if (act === "cap-cancel") { clearCapture(); renderHome(); }
     else if (act === "seg-rename") openSegRename(Number(t.dataset.i));
     else if (act === "seg-rename-save") doSegRename(Number(t.dataset.i));
     else if (act === "seg-split") renderSegSplit(Number(t.dataset.i));
@@ -1960,11 +2244,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "wf-save") doWordFix(Number(t.dataset.si), Number(t.dataset.wi));
     else if (act === "wf-remove") removeWord(Number(t.dataset.si), Number(t.dataset.wi));
     else if (act === "rw-commit") commitReviewLesson();
-    else if (act === "cap-done-lessons") { capture = null; renderLessons(); }
-    else if (act === "cap-study") { capture = null; renderLessons(); }
+    else if (act === "cap-done-lessons") { clearCapture(); renderLessons(); }
+    else if (act === "cap-study") { clearCapture(); renderLessons(); }
     else if (act === "cap-save-later") renderHome();
     else if (act === "cap-retake") { if (capture) capture.mode = null; renderCapture(); }
-    else if (act === "cap-add-manual") { capture = null; renderLessons(); }
+    else if (act === "cap-add-manual") { clearCapture(); renderLessons(); }
     else if (act === "cap-skip-bad") { if (capture) { const bad = (t.dataset.bad || "").split(",").map(Number); capture.pages = capture.pages.filter((p, i) => !bad.includes(i + 1)); capture.mode = null; renderReading(); } }
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
@@ -1999,6 +2283,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "lesson-undo") undoDelete(id);
     else if (act === "recently-deleted") renderRecentlyDeleted();
     else if (act === "lesson-restore") restoreFromList(id);
+    else if (act === "word-restore") restoreDeletedWord(id);
     else if (act === "close-sheet") closeSheet();
     // merge + split (Phase 4c)
     else if (act === "lesson-merge") openMerge(id);
@@ -2032,12 +2317,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "delete-confirm") doDeleteAccount();
     else if (act === "account-restore") restoreAccount();
     else if (act === "install-dismiss") dismissInstall();
+    // Roleplay (R4)
+    else if (act === "rp-open") openRoleplayPicker(id);
+    else if (act === "rp-start" || act === "rp-again") startRoleplay(t.dataset.scn, t.dataset.lid || null);
+    else if (act === "rp-send") sendRoleplay();
+    else if (act === "rp-toggle-en") roleplayToggleEn();
+    else if (act === "rp-exit") exitRoleplay();
+    else if (act === "rp-log") renderRoleplayLog();
+    else if (act === "rp-log-open") renderRoleplayTranscript(id);
     // People + emulation (Phase 5d)
     else if (act === "people") renderPeople();
     else if (act === "invite-open") openInvite();
     else if (act === "invite-role") inviteRoleSet(t.dataset.val);
     else if (act === "invite-send") doInvite();
     else if (act === "study-as") studyAs(id);
+    else if (act === "person-menu") openPersonMenu(id);
+    else if (act === "person-promote") setRole(id, "admin");
+    else if (act === "person-demote") setRole(id, "user");
     else if (act === "emu-options") openEmuOptions();
     else if (act === "emu-exit") exitEmulation();
     else if (act === "emu-count") toggleCountOwn();
@@ -2049,6 +2345,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   app.addEventListener("submit", (e) => {
     if (e.target.id === "answer-form") { e.preventDefault(); check(); }
+    else if (e.target.dataset && e.target.dataset.act === "rp-send-form") { e.preventDefault(); sendRoleplay(); }
   });
 
   // ---- auth gate (Phase 5c) — INERT unless configured ----------------------
@@ -2121,6 +2418,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await seedUser(store, DEMO_ID, now());
     _demoReady = true;
     await _recache();
+    await restoreCaptureDraft();                    // resume an in-progress scan (R5)
   }
 
   // Bind the signed-in Google account as the active account, load its data, sync.
@@ -2135,7 +2433,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       const transport = self.SpanishFlashcardsSupabaseTransport.createSupabaseTransport({
         url: cfg.url, anonKey: cfg.anonKey, getAccessToken: () => auth.getAccessToken(),
       });
-      _sync = self.SpanishFlashcardsSync.createSync(store, transport);
+      // Sync the default collections; add roleplay transcripts only once the
+      // Supabase roleplay_sessions table + RLS exist (config.roleplay.synced),
+      // so the feature can't break sync before the migration is applied.
+      const syncCollections = roleplaySynced()
+        ? store.COLLECTIONS.concat([store.ROLEPLAY_COLLECTION])
+        : store.COLLECTIONS;
+      _sync = self.SpanishFlashcardsSync.createSync(store, transport, { collections: syncCollections });
       setInterval(scheduleSync, 60000);
       document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleSync(); });
     }
@@ -2148,6 +2452,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (e) { console.warn("initial pull deferred (offline?):", e && e.message); }
     await seedUser(store, user.id, now());
     await _recache();
+    await restoreCaptureDraft();                    // resume an in-progress scan (R5)
     scheduleSync();                                 // push the seed + catch up, in the background
   }
 

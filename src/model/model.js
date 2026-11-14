@@ -240,6 +240,42 @@
   }
 
   /**
+   * A scripted-roleplay transcript (R4). Keyed by the STUDIER (same track id as
+   * progress), so the admin RLS read makes it parent-visible. Append-only in
+   * spirit — turns are added as the chat proceeds; `status` flips to "ended" when
+   * it wraps up. `moderation` on a turn records a blocked/redirected learner line.
+   * @typedef {Syncable & {
+   *   userId: string,
+   *   scenarioId: string,
+   *   lessonId: string|null,
+   *   lessonName: string|null,
+   *   startedAt: string,
+   *   endedAt: string|null,
+   *   status: "active"|"ended",
+   *   turns: { role: "ai"|"learner", es: string, en: string|null, at: string, moderation?: {action: string, reason: string} }[]
+   * }} RoleplaySession
+   */
+
+  /**
+   * @param {{userId: string, scenarioId: string, lessonId?: string|null, lessonName?: string|null, turns?: any[]}} input
+   * @param {number} [now]
+   * @returns {RoleplaySession}
+   */
+  function createRoleplaySession(input, now) {
+    const ts = toIso(now);
+    return Object.assign(base(now), {
+      userId: input.userId,
+      scenarioId: input.scenarioId,
+      lessonId: input.lessonId == null ? null : String(input.lessonId),
+      lessonName: input.lessonName == null ? null : String(input.lessonName),
+      startedAt: ts,
+      endedAt: null,
+      status: "active",
+      turns: input.turns ? input.turns.slice() : [],
+    });
+  }
+
+  /**
    * Compound key for a per-studier progress / event row.
    * @param {string} userId @param {string} cardId @returns {string}
    */
@@ -307,6 +343,7 @@
     createCard,
     createProgress,
     createReviewEvent,
+    createRoleplaySession,
     progressKey,
     TRACK_SEP,
     makeTrack,

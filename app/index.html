@@ -41,8 +41,18 @@
 <script src="../src/account/account.js" defer></script>
 <script src="../src/io/import.js" defer></script>
 <script src="../src/ai/ai-adapter.js" defer></script>
+<script src="../src/roleplay/roleplay.js" defer></script>
 <!-- UI controller -->
 <script src="config.js" defer></script>
 <script src="main.js" defer></script>
+<!-- Offline-first service worker (R5). Network-first, so it never serves stale
+     code while online; falls back to cache for offline study. -->
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
 </body>
 </html>

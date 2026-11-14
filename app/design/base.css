@@ -91,6 +91,7 @@ button { font: inherit; color: inherit; }
 .icon--download{-webkit-mask-image:url(icons/download.svg);mask-image:url(icons/download.svg)}
 .icon--person-add{-webkit-mask-image:url(icons/person-add.svg);mask-image:url(icons/person-add.svg)}
 .icon--idea-bulb{-webkit-mask-image:url(icons/idea-bulb.svg);mask-image:url(icons/idea-bulb.svg)}
+.icon--chat{-webkit-mask-image:url(icons/chat.svg);mask-image:url(icons/chat.svg)}
 
 /* ---- Type utilities (names echo tokens.css) ------------------------------- */
 .t-caps  { font-size: var(--t-caps); font-weight: 700; letter-spacing: .14em;

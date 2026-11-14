@@ -23,6 +23,9 @@ test("progress/events are owned by the studier's BASE user (admin for an emulati
 });
 
 test("every sync collection maps to a table", () => {
-  assert.deepEqual(Object.keys(TABLE).sort(), ["cards", "decks", "lessons", "progress", "reviewEvents", "users"]);
+  // roleplaySessions (R4) is a known table but kept OUT of the default sync set
+  // (store.COLLECTIONS) until the roleplay_sessions table exists; see store.js.
+  assert.deepEqual(Object.keys(TABLE).sort(), ["cards", "decks", "lessons", "progress", "reviewEvents", "roleplaySessions", "users"]);
   assert.equal(TABLE.reviewEvents, "review_events");
+  assert.equal(TABLE.roleplaySessions, "roleplay_sessions");
 });

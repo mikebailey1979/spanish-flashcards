@@ -29,11 +29,13 @@
     cards: "cards",
     progress: "progress",
     reviewEvents: "review_events",
+    roleplaySessions: "roleplay_sessions",
   };
 
   /** Who owns (may read/write) a row — mirrors db/schema.sql. */
   function ownerOf(collection, rec) {
-    if (collection === "progress" || collection === "reviewEvents") return model.trackBaseUser(rec.userId);
+    if (collection === "progress" || collection === "reviewEvents" || collection === "roleplaySessions")
+      return model.trackBaseUser(rec.userId);
     if (collection === "users") return rec.id;
     return rec.ownerId;
   }

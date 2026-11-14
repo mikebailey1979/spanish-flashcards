@@ -12,6 +12,8 @@
 --   decks/lessons/cards        -> the content owner (doc->>'ownerId')
 --   progress/review_events     -> the STUDIER's base user (trackBaseUser of doc->>'userId');
 --                                 an admin's emulation track `admin@as:target` has owner = admin
+--   roleplay_sessions          -> same as progress (the STUDIER's base user); admins may READ
+--                                 them (parent-visible transcripts) via the is_admin() select rule
 --   users                      -> the user themselves (id = owner = their GoTrue auth uid)
 --
 -- AUTH MAPPING: a user's app id = their Supabase/GoTrue auth uid, so RLS uses
@@ -65,7 +67,7 @@ create policy allowlist_sel on allowlist for select using (is_admin());
 do $$
 declare t text;
 begin
-  foreach t in array array['users','decks','lessons','cards','progress','review_events'] loop
+  foreach t in array array['users','decks','lessons','cards','progress','review_events','roleplay_sessions'] loop
     execute format($f$
       create table if not exists %I (
         id         uuid primary key,
@@ -88,7 +90,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['users','decks','lessons','cards','progress','review_events'] loop
+  foreach t in array array['users','decks','lessons','cards','progress','review_events','roleplay_sessions'] loop
     execute format($f$
       drop policy if exists %I on %I;
       create policy %I on %I for select using ((owner = auth.uid() or is_admin()) and is_allowed());

@@ -183,3 +183,49 @@
   padding: var(--s-6) var(--s-7); display: flex; flex-direction: column; gap: 6px; }
 .banner .t-caps { color: var(--btn-text); }
 .skeleton { border-radius: var(--r-row); height: 56px; }    /* shimmer in motion.css */
+
+/* ---- Roleplay "pretend chat" (R4) ---------------------------------------- */
+.rp-screen { display: flex; flex-direction: column; min-height: 100dvh;
+  padding-bottom: calc(var(--s-6) + env(safe-area-inset-bottom)); }
+.rp-head { margin-bottom: var(--s-2); align-items: center; }
+.rp-head__title { flex: 1; text-align: center; font-weight: 800; font-size: var(--t-title); }
+.rp-head__en { font-size: 12px; white-space: nowrap; }
+.rp-head__en.is-on { background: #fff; color: var(--btn-text); }
+.rp-sub { text-align: center; margin-bottom: var(--s-5); font-size: 13px; }
+.rp-thread { flex: 1; display: flex; flex-direction: column; gap: var(--s-4);
+  overflow-y: auto; padding: var(--s-2) 0 var(--s-5); }
+.rp-row { display: flex; }
+.rp-row--ai { justify-content: flex-start; }
+.rp-row--me { justify-content: flex-end; }
+.rp-bubble { max-width: 82%; border-radius: var(--r-row); padding: var(--s-4) var(--s-5);
+  font-size: 17px; line-height: 1.35; }
+.rp-bubble--ai { background: var(--surface-1); color: var(--on-ground);
+  border-bottom-left-radius: var(--r-key); }
+/* Learner bubble + input sit on an ALWAYS-white surface, so their ink is a fixed
+   dark — not the theme-flipping --sheet-ink, which turns light in dark mode. */
+.rp-bubble--me { background: #fff; color: #12263F;
+  border-bottom-right-radius: var(--r-key); font-weight: 600; }
+.rp-bubble--me.is-pending { opacity: .55; }
+.rp-bubble--redirect { background: var(--surface-1); color: var(--on-ground);
+  opacity: .75; font-style: italic; font-size: 15px; }
+.rp-bubble .rp-say { vertical-align: middle; width: 28px; height: 28px; }
+.rp-en { margin-top: 4px; opacity: .8; font-size: 14px; }
+.rp-bubble--me .rp-en { color: #44546B; opacity: 1; }
+.rp-dots { display: inline-flex; gap: 5px; align-items: center; height: 14px; }
+.rp-dots i { width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+  opacity: .5; animation: rp-blink 1.2s infinite both; }
+.rp-dots i:nth-child(2) { animation-delay: .2s; }
+.rp-dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes rp-blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: .9; } }
+.rp-compose { display: flex; gap: var(--s-3); align-items: center; margin-top: var(--s-3); }
+.rp-input { flex: 1; height: 52px; border-radius: var(--r-pill); padding: 0 var(--s-6);
+  background: #fff; color: #12263F; border: 2px solid transparent; outline: none;
+  font-family: inherit; font-size: 17px; font-weight: 600; }
+.rp-input::placeholder { color: #44546B; }
+.rp-input:focus { border-color: var(--btn-text); }
+.rp-send { width: 52px; height: 52px; flex: 0 0 52px; border: 0; cursor: pointer;
+  border-radius: 50%; background: #fff; color: var(--btn-text);
+  display: inline-flex; align-items: center; justify-content: center; transform: rotate(-90deg); }
+.rp-send:disabled { opacity: .5; cursor: default; }
+.rp-ended { margin-top: var(--s-4); display: flex; flex-direction: column; gap: var(--s-3); }
+@media (prefers-reduced-motion: reduce) { .rp-dots i { animation: none; } }

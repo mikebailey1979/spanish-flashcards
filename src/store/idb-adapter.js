@@ -16,7 +16,11 @@
   "use strict";
 
   const DEFAULT_DB = "aliyah-flashcards";
-  const STORES = ["users", "decks", "lessons", "cards", "progress", "reviewEvents"];
+  // v2 added roleplaySessions (R4); v3 adds captureDrafts (R5 — a LOCAL-ONLY,
+  // never-synced store that persists an in-progress homework scan across reloads).
+  // onupgradeneeded creates any missing store, so existing databases upgrade in place.
+  const DEFAULT_VERSION = 3;
+  const STORES = ["users", "decks", "lessons", "cards", "progress", "reviewEvents", "roleplaySessions", "captureDrafts"];
 
   /** @param {IDBRequest} req @returns {Promise<any>} */
   function wrap(req) {
@@ -31,7 +35,7 @@
    */
   function createIdbAdapter(opts) {
     const name = (opts && opts.name) || DEFAULT_DB;
-    const version = (opts && opts.version) || 1;
+    const version = (opts && opts.version) || DEFAULT_VERSION;
     const stores = (opts && opts.stores) || STORES;
     /** @type {Promise<IDBDatabase>|null} */
     let dbp = null;
