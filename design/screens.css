@@ -97,7 +97,7 @@
    A faint motif behind all content. Sits below the content layer (.screen > *
    is z-index 1) and above the drifting ::before. Fades slightly toward the
    bottom so lists stay clean; a touch lighter in light mode. */
-.screen__pat { position: absolute; inset: 0; z-index: 0; opacity: .18; pointer-events: none;
+.screen__pat { position: absolute; inset: 0; z-index: 0; opacity: .09; pointer-events: none;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0,0,0,.55) 100%);
   mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0,0,0,.55) 100%); }
 /* The motif tiles (mask-size) over a solid accent fill, so it's bigger than on
@@ -107,9 +107,9 @@
   -webkit-mask-repeat: repeat; mask-repeat: repeat;
   -webkit-mask-size: 760px auto; mask-size: 760px auto;
   -webkit-mask-position: center top; mask-position: center top; }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .screen__pat { opacity: .14; } }
-:root[data-theme="light"] .screen__pat { opacity: .14; }
-:root[data-theme="dark"] .screen__pat { opacity: .18; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .screen__pat { opacity: .07; } }
+:root[data-theme="light"] .screen__pat { opacity: .07; }
+:root[data-theme="dark"] .screen__pat { opacity: .09; }
 
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
 .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
