@@ -668,7 +668,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       const rl = cardLesson[resume.ids[resume.idx]];
       heroLessonId = rl ? rl.id : null;
       const left = resume.total - resume.idx, pct = resume.total ? Math.round(resume.idx / resume.total * 100) : 0;
-      hero = `<div class="hero">
+      const a = CardArt && rl ? CardArt.card(rl) : null;
+      hero = a ? `<div class="hero hero--art" style="--c:${a.color}">
+        ${a.patHTML}<span class="hero__wm">${CardArt.iconSvg(a.icon)}</span>
+        <div class="hero__inner">
+          <div class="t-caps hero__label">Resume</div>
+          <div class="t-title hero__ttl">${esc(rl ? rl.name : "Your session")}</div>
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span class="t-hero hero__num">${left}</span>
+            <span class="t-label" style="opacity:.85">left in this session</span>
+          </div>
+          <div class="progress"><i style="width:${pct}%"></i></div>
+          <button class="btn btn--primary" data-act="resume">Resume</button>
+          <button data-act="new-session" style="background:none;border:0;color:inherit;opacity:.9;font-weight:700;cursor:pointer;padding:var(--s-3)">Start a new session instead</button>
+        </div>
+      </div>` : `<div class="hero">
         <div class="t-caps hero__label">Resume</div>
         <div class="t-title">${esc(rl ? rl.name : "Your session")}</div>
         <div style="display:flex;align-items:baseline;gap:10px">
@@ -732,6 +746,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   const CardArt = (typeof window !== "undefined" && window.SpanishFlashcardsCardArt) || null;
+  // A faint full-screen ambient wash (behind all content) for Progress, Me, and
+  // lesson drill-down. Returns a `.screen__pat` layer + the `--c` accent to put
+  // on the <section>. `color` pins the accent (e.g. the warm streak flame on
+  // Progress); omit it to derive a stable one from `key` (so a lesson's screen
+  // wash matches that lesson's card art everywhere).
+  function screenPat(key, color) {
+    if (!CardArt) return { style: "", patHTML: "" };
+    const ps = CardArt.patternSvg(CardArt.patternIndex({ id: key }));
+    const c = color || CardArt.accent({ id: key });
+    return { style: ` style="--c:${c}"`, patHTML: `<span class="screen__pat">${ps.svg}</span>` };
+  }
   function lessonRow(l, due) {
     if (!CardArt) return `<button class="row" data-act="open-lesson" data-id="${l.id}">
       <span class="row__main"><span class="row__title">${esc(l.name)}</span>
@@ -775,6 +800,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const started = cards.filter((c) => (D.byCard.get(c.id) || []).length > 0).length;
     const pct = lessonProgress(l, D), tricky = cards.filter((c) => isTricky(c.id, D)).length;
     const art = CardArt ? CardArt.card(l) : null;   // same color/icon/pattern as this lesson's card
+    const sp = screenPat(l.id || l.name, art ? art.color : null);   // faint full-screen wash in the same identity
     const secMap = new Map();
     for (const c of cards) { const k = c.category || "—"; if (!secMap.has(k)) secMap.set(k, []); secMap.get(k).push(c); }
     const strictLabel = { exact: "Exact", forgiving: "Forgiving" };
@@ -789,7 +815,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       return `<div class="section-label"><span class="t-caps" style="opacity:.75">${esc(name === "—" ? "Other" : name)}</span><span class="t-label" style="opacity:.7">${p}%</span></div>
         <div class="word-list">${rows}</div>`;
     }).join("");
-    mount(`<section class="screen screen--tabbed">
+    mount(`<section class="screen screen--tabbed"${sp.style}>
+      ${sp.patHTML}
       <div class="study-head__row" style="margin-bottom:var(--s-7)">
         <button class="study-head__exit" data-act="lessons">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">${esc(l.name)}</span>
@@ -845,7 +872,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const tiles = [[wk.words, "words practiced this week"], [wk.pct + "%", "right on the first try"], [wk.sessions, "study sessions"]]
       .map(([n, t]) => `<div class="hero" style="flex:1;padding:var(--s-6) var(--s-5);gap:4px"><div class="t-title">${n}</div><div class="t-label" style="opacity:.75">${t}</div></div>`).join("");
     const readyRows = lessons.map((l) => { const p = lessonProgress(l, D); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span></div>`; }).join("");
-    mount(`<section class="screen screen--tabbed">
+    const sp = screenPat("progress", "var(--accent)");   // warm flame wash, echoing the streak
+    mount(`<section class="screen screen--tabbed"${sp.style}>
+      ${sp.patHTML}
       <h1 class="t-h1" style="margin-bottom:var(--s-6)">Progress</h1>
       <div class="hero">
         <div style="display:flex;align-items:center;gap:8px">${icon("flame", "icon--lg")}<span class="t-hero" style="font-size:44px">${st}</span><span class="t-title">day streak</span></div>
@@ -1498,7 +1527,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   function renderMe() {
     setView("me");
     const name = esc(user.displayName || "Me");
-    mount(`<section class="screen screen--tabbed">
+    const sp = screenPat("me:" + (user.displayName || "me"));   // a personal accent, stable per person
+    mount(`<section class="screen screen--tabbed"${sp.style}>
+      ${sp.patHTML}
       <h1 class="t-h1" style="margin-bottom:var(--s-6)">Me</h1>
       <div class="hero" style="flex-direction:row;align-items:center;gap:var(--s-6)">
         <span class="avatar">${name.slice(0, 1)}</span>
