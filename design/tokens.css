@@ -53,7 +53,7 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --ground:#081A33; --ground-lift:#0F2A50; --correct:#063D26; --notquite:#6E1A2C; --ink-on-notquite:#FFFFFF;
   --btn-text:#081A33; --btn-text-ok:#063D26; --btn-text-no:#6E1A2C; --mark-notquite:#B8283F;
-  --sheet-bg:#17263B; --sheet-ink:#EAF1FA; --sheet-muted:#9FB1C9; --sheet-field:#1F3149; --sheet-line:#2A3C55;
+  --sheet-bg:#2A3F60; --sheet-ink:#EAF1FA; --sheet-muted:#A7B7CE; --sheet-field:#1A2B45; --sheet-line:#3C547A;
   --surface-1:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.14);
   --drift-a:rgba(50,100,170,.2); --drift-b:rgba(4,16,36,.5);
   --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,130,140,.24);
@@ -61,7 +61,7 @@
 :root[data-theme="dark"]{
   --ground:#081A33; --ground-lift:#0F2A50; --correct:#063D26; --notquite:#6E1A2C; --ink-on-notquite:#FFFFFF;
   --btn-text:#081A33; --btn-text-ok:#063D26; --btn-text-no:#6E1A2C; --mark-notquite:#B8283F;
-  --sheet-bg:#17263B; --sheet-ink:#EAF1FA; --sheet-muted:#9FB1C9; --sheet-field:#1F3149; --sheet-line:#2A3C55;
+  --sheet-bg:#2A3F60; --sheet-ink:#EAF1FA; --sheet-muted:#A7B7CE; --sheet-field:#1A2B45; --sheet-line:#3C547A;
   --surface-1:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.14);
   --drift-a:rgba(50,100,170,.2); --drift-b:rgba(4,16,36,.5);
   --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,130,140,.24);

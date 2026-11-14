@@ -1,6 +1,6 @@
 {
   "name": "Aliyah's Flashcards",
-  "short_name": "Aliyah's",
+  "short_name": "Flashcards",
   "description": "Turn your Spanish homework into flashcards.",
   "start_url": "./",
   "scope": "./",

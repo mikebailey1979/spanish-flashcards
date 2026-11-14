@@ -60,17 +60,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     return res.why === "typo" ? "hard" : "good";
   }
   // Pronounce-back (R1): browser SpeechSynthesis — free, on-device, offline, no infra.
+  //  iOS Safari (esp. an installed PWA) needs the engine "unlocked" by a real user
+  //  gesture and its voice list loaded before it will speak, so we warm it up on the
+  //  first tap and wait for voices when they aren't ready yet.
+  let _ttsWarmed = false;
+  function warmTTS() {
+    if (_ttsWarmed) return;
+    try {
+      const s = window.speechSynthesis; if (!s) return;
+      s.getVoices();                               // kick off async voice loading
+      const u = new SpeechSynthesisUtterance("");   // silent unlock, inside the gesture
+      u.volume = 0; s.speak(u); s.cancel();
+      _ttsWarmed = true;
+    } catch {}
+  }
+  document.addEventListener("pointerdown", warmTTS, true);   // first interaction unlocks iOS TTS
   function speak(text, locale) {
     try {
       const synth = window.speechSynthesis;
       if (!synth || !text) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(String(text));
-      u.lang = locale || "es-ES";
-      u.rate = 0.95;
-      const v = (synth.getVoices() || []).find((vo) => /^es/i.test(vo.lang || ""));
-      if (v) u.voice = v;
-      synth.speak(u);
+      warmTTS();
+      const utter = () => {
+        const u = new SpeechSynthesisUtterance(String(text));
+        u.lang = locale || "es-ES";
+        u.rate = 0.95;
+        const v = (synth.getVoices() || []).find((vo) => /^es/i.test(vo.lang || ""));
+        if (v) u.voice = v;
+        synth.cancel();
+        synth.speak(u);
+      };
+      if ((synth.getVoices() || []).length) { utter(); return; }
+      // Voices not ready yet (common on iOS's first use): speak once they load.
+      let done = false;
+      const once = () => { if (done) return; done = true; utter(); };
+      synth.addEventListener("voiceschanged", once, { once: true });
+      setTimeout(once, 300);
     } catch {}
   }
   // Explain-my-answer (R1): on-demand AI explanation in a bottom sheet.
@@ -506,7 +530,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const es = D.byCard.get(id) || [];
     return !(es.length >= 3 && es.slice(-3).every((e) => e.grade !== "again"));
   }
-  function lessonReady(l, D) { return l.cardIds.length ? Math.round(l.cardIds.filter((id) => isReady(id, D)).length / l.cardIds.length * 100) : 0; }
+  // Learning progress: an unseen card is 0, a studied-but-not-yet-"ready" card is
+  // half, a "ready for testing" card (2 correct in a row) is full — so a lesson
+  // you've started actually shows progress instead of 0% until everything's mastered.
+  function cardLearn(id, D) { if (isReady(id, D)) return 1; const es = D.byCard.get(id); return es && es.length ? 0.5 : 0; }
+  function lessonProgress(l, D) { return l.cardIds.length ? Math.round(l.cardIds.reduce((a, id) => a + cardLearn(id, D), 0) / l.cardIds.length * 100) : 0; }
   function trickyCards(D) { return D.cards.filter((c) => isTricky(c.id, D)); }
   const dayKey = (ts) => { const d = new Date(ts); return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate(); };
   function streak(D) {
@@ -614,7 +642,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="t-title">${esc(l.name)}</div>
         <div style="display:flex;align-items:baseline;gap:10px">
           <span class="t-hero hero__num">${n}</span>
-          <span class="t-label" style="opacity:.8">words to study<br>${lessonReady(l, D)}% of this lesson Ready for Testing</span>
+          <span class="t-label" style="opacity:.8">words to study<br>${lessonProgress(l, D)}% of this lesson learned</span>
         </div>
         <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}">Study</button>
       </div>`;
@@ -626,7 +654,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="btn btn--primary" data-act="keep-practicing">Keep practicing</button>
       </div>`;
     }
-    const trickyRow = `<button class="row" data-act="practice-tricky">
+    const trickyRow = `<button class="row" data-act="practice-tricky" style="margin-top:var(--s-4)">
       <span class="row__main"><span class="row__title">Practice tricky words</span>
         <span class="row__meta">The ones that need another look</span></span>
       ${tricky ? `<span class="pill">${tricky}</span>` : ""}</button>`;
@@ -677,12 +705,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cards = await store.cardsByIds(l.cardIds, ctx.contentOwnerId);
     const ready = cards.filter((c) => isReady(c.id, D)).length;
     const started = cards.filter((c) => (D.byCard.get(c.id) || []).length > 0).length;
-    const pct = lessonReady(l, D), tricky = cards.filter((c) => isTricky(c.id, D)).length;
+    const pct = lessonProgress(l, D), tricky = cards.filter((c) => isTricky(c.id, D)).length;
     const secMap = new Map();
     for (const c of cards) { const k = c.category || "—"; if (!secMap.has(k)) secMap.set(k, []); secMap.get(k).push(c); }
     const strictLabel = { exact: "Exact", forgiving: "Forgiving" };
     const sections = [...secMap.entries()].map(([name, cs]) => {
-      const p = Math.round(cs.filter((c) => isReady(c.id, D)).length / cs.length * 100);
+      const p = Math.round(cs.reduce((a, c) => a + cardLearn(c.id, D), 0) / cs.length * 100);
       const rows = cs.map((c) => `<div class="word-row">
         <span class="word-row__main"><span class="word-row__es">${esc(c.front)}</span><span class="word-row__en">${esc(c.back)}</span></span>
         ${c.strictMode && c.strictMode !== "follow" ? `<span class="word-row__flag">${esc(strictLabel[c.strictMode] || "")}</span>` : ""}
@@ -700,7 +728,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       </div>
       <div class="hero">
         <div class="t-hero" style="font-size:clamp(44px,15vw,64px)">${pct}%</div>
-        <div class="t-label" style="opacity:.85">Ready for Testing · ${cards.length} words</div>
+        <div class="t-label" style="opacity:.85">Learned · ${cards.length} words</div>
         <div class="progress"><i style="width:${pct}%"></i></div>
       </div>
       <div class="row" style="cursor:default;justify-content:space-around;text-align:center;margin-top:var(--s-4)">
@@ -739,7 +767,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }).join("");
     const tiles = [[wk.words, "words practiced this week"], [wk.pct + "%", "right on the first try"], [wk.sessions, "study sessions"]]
       .map(([n, t]) => `<div class="hero" style="flex:1;padding:var(--s-6) var(--s-5);gap:4px"><div class="t-title">${n}</div><div class="t-label" style="opacity:.75">${t}</div></div>`).join("");
-    const readyRows = lessons.map((l) => { const p = lessonReady(l, D); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span></div>`; }).join("");
+    const readyRows = lessons.map((l) => { const p = lessonProgress(l, D); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span></div>`; }).join("");
     mount(`<section class="screen screen--tabbed">
       <h1 class="t-h1" style="margin-bottom:var(--s-6)">Progress</h1>
       <div class="hero">
@@ -751,7 +779,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <button class="row" data-act="practice-tricky" style="margin-top:var(--s-5)">
         <span class="row__main"><span class="t-caps" style="opacity:.75">Tricky words</span><span class="t-title">${tricky} words</span><span class="row__meta">that need another look</span></span>
         <span class="chip" style="background:#fff;color:var(--btn-text)">Practice</span></button>
-      <div class="section-label"><span class="t-caps" style="opacity:.75">Lessons · Ready for Testing</span></div>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">Lessons · Progress</span></div>
       <div class="list">${readyRows}</div>
     </section>${tabbar("progress")}`);
   }
@@ -2462,14 +2490,38 @@ document.addEventListener("DOMContentLoaded", async () => {
     const m = /(?:^|[#&])dev=(signin|notlist|notonlist)/.exec(location.hash);
     if (m) { renderAuth(m[1] === "signin" ? "signin" : "notlist"); return; }
     let auth = null; try { auth = await getAuth(); } catch {}
-    if (!auth) { await ensureDemo(); renderHome(); return; }   // unconfigured → local demo
+    if (!auth) { await ensureDemo(); landFirst(); return; }    // unconfigured → local demo
     let session = null; try { session = await auth.getSession(); } catch {}
     if (!session) { _activated = null; renderAuth("signin"); return; }
     let allowed = false; try { allowed = await auth.isAllowed(); } catch {}
     if (!allowed) { renderAuth("notlist", (session.user && session.user.email) || "you@gmail.com"); return; }
     if (_activated !== session.user.id) { _activated = session.user.id; await activateAccount(session); }
     else { await _recache(); }
-    renderHome();                                   // allowed → per-account data + background sync
+    landFirst();                                    // allowed → per-account data (auto-resume if just backgrounded mid-study)
+  }
+  // Keep a study session across a quick background/relaunch. iOS discards an
+  //  installed PWA when backgrounded, which reloads the app and drops the
+  //  in-memory session. We mark the moment we're backgrounded WHILE on the study
+  //  screen; on the next boot, if that was recent (< 30 min), go straight back in
+  //  instead of landing on Home. A longer gap falls through to Home + Resume card.
+  const BG_STUDY_KEY = "aliyah.bgStudyAt";
+  function markBgIfStudying() {
+    if (S && S.queue && S.queue.length && document.querySelector('[data-act="exit-study"]')) {
+      saveResume();
+      try { localStorage.setItem(BG_STUDY_KEY, String(Date.now())); } catch {}
+    }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) markBgIfStudying(); });
+  window.addEventListener("pagehide", markBgIfStudying);
+  async function landFirst() {
+    let recent = false;
+    try {
+      const t = +localStorage.getItem(BG_STUDY_KEY) || 0;
+      localStorage.removeItem(BG_STUDY_KEY);
+      recent = t && Date.now() - t < 30 * 60000;
+    } catch {}
+    if (recent && getResume()) return resumeSession();
+    return renderHome();
   }
   function boot() { authGate(); }
   window.addEventListener("hashchange", authGate);
