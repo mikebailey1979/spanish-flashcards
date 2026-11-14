@@ -851,8 +851,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function renderProgress() {
     setView("progress");
     const D = await loadData();
+    const sp = screenPat("progress", "var(--accent)");   // warm flame wash, echoing the streak
     if (!D.evs.length) {
-      return mount(`<section class="screen screen--tabbed">
+      return mount(`<section class="screen screen--tabbed"${sp.style}>
+        ${sp.patHTML}
         <h1 class="t-h1" style="margin-bottom:var(--s-7)">Progress</h1>
         <div class="placeholder">${icon("progress")}<div class="t-title">Nothing here yet</div>
           <div class="muted">Finish your first study session and your progress shows up here.</div>
@@ -872,7 +874,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const tiles = [[wk.words, "words practiced this week"], [wk.pct + "%", "right on the first try"], [wk.sessions, "study sessions"]]
       .map(([n, t]) => `<div class="hero" style="flex:1;padding:var(--s-6) var(--s-5);gap:4px"><div class="t-title">${n}</div><div class="t-label" style="opacity:.75">${t}</div></div>`).join("");
     const readyRows = lessons.map((l) => { const p = lessonProgress(l, D); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span></div>`; }).join("");
-    const sp = screenPat("progress", "var(--accent)");   // warm flame wash, echoing the streak
     mount(`<section class="screen screen--tabbed"${sp.style}>
       ${sp.patHTML}
       <h1 class="t-h1" style="margin-bottom:var(--s-6)">Progress</h1>
@@ -895,8 +896,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const D = await loadData();
     const tc = trickyCards(D);
     const head = `<div class="study-head__row" style="margin-bottom:var(--s-7)"><button class="study-head__exit" data-act="home">${icon("back")}</button><span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Tricky words</span></div>`;
+    const sp = screenPat("tricky");
     if (!tc.length) {
-      return mount(`<section class="screen screen--tabbed">${head}
+      return mount(`<section class="screen screen--tabbed"${sp.style}>${sp.patHTML}${head}
         <div class="empty"><i class="icon icon--star"></i><div class="empty__title">No tricky words right now</div>
           <div class="empty__text">Words you miss a few times show up here so you can practice them. Nothing to clean up — nice work!</div>
           <button class="btn btn--primary" data-act="study-all" style="max-width:260px">Keep studying</button>
@@ -906,7 +908,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const byLesson = {};
     for (const c of tc) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
     const rows = Object.entries(byLesson).map(([lid, n]) => { const l = lessons.find((x) => x.id === lid); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l ? l.name : "")}</span></span><span class="pill">${n}</span></div>`; }).join("");
-    mount(`<section class="screen screen--tabbed">${head}
+    mount(`<section class="screen screen--tabbed"${sp.style}>${sp.patHTML}${head}
       <div class="hero"><div class="t-hero" style="font-size:56px">${tc.length}</div><div class="t-label" style="opacity:.85">words that need another look</div>
         <div class="muted" style="margin-top:4px">This group fills and empties by itself. A word leaves once you get it right 3 times in a row.</div></div>
       <div class="section-label"><span class="t-caps" style="opacity:.75">From your lessons</span></div>
@@ -1265,7 +1267,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="chip" style="background:#fff;color:var(--btn-text)" data-act="word-restore" data-id="${c.id}">Restore</button></div>`;
     }).join("");
     const empty = !deleted.length && !deletedWords.length;
-    mount(`<section class="screen screen--tabbed">
+    const sp = screenPat("recently-deleted");
+    mount(`<section class="screen screen--tabbed"${sp.style}>
+      ${sp.patHTML}
       <div class="study-head__row" style="margin-bottom:var(--s-7)">
         <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Recently deleted</span>
@@ -1579,7 +1583,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     closeSheet(); renderMe();
   }
   function renderYourData() {
-    mount(`<section class="screen screen--tabbed">
+    const sp = screenPat("your-data");
+    mount(`<section class="screen screen--tabbed"${sp.style}>
+      ${sp.patHTML}
       <div class="study-head__row" style="margin-bottom:var(--s-7)">
         <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Your data</span>
@@ -1690,7 +1696,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       <span class="row__main" style="margin-left:var(--s-4)"><span class="row__title" style="-webkit-line-clamp:1">${esc(u.displayName || u.email)}${u.id === user.id ? " (you)" : ""}</span><span class="row__meta">${u.role === "admin" ? "Admin" : "Learner"}</span></span>
       ${isLearner && u.id !== user.id ? `<button class="chip" style="background:#fff;color:var(--btn-text)" data-act="study-as" data-id="${u.id}">Study as</button>` : ""}
       <button class="toolbtn toolbtn--icon" data-act="person-menu" data-id="${u.id}" aria-label="Options for ${esc(u.displayName || u.email)}">${icon("more")}</button></div>`;
-    mount(`<section class="screen screen--tabbed">
+    const sp = screenPat("people");
+    mount(`<section class="screen screen--tabbed"${sp.style}>
+      ${sp.patHTML}
       <div class="study-head__row" style="margin-bottom:var(--s-6)">
         <button class="study-head__exit" data-act="tab" data-tab="me">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">People with access</span>
