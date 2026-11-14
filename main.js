@@ -769,6 +769,23 @@ document.addEventListener("DOMContentLoaded", async () => {
       patHTML: `<span class="screen__pat"><span class="screen__pat-ink" style="-webkit-mask-image:${uri};mask-image:${uri}"></span></span>`,
     };
   }
+  // A playful multi-colour tiled camera motif for the Add (capture) screen.
+  // Colours are baked into the SVG (a CSS mask can only be one colour), so this
+  // is a real background-image tile rather than the single-accent screenPat wash.
+  function cameraFieldHTML() {
+    const cols = ["#FFC24B", "#FF8A6B", "#2DC2A0", "#9A8CFF", "#F48FB6", "#5BB8E8", "#86C443", "#FF9FB0"];
+    const cam = '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>';
+    const T = 150, s = 1.7;   // tile size + camera scale
+    // one camera per quadrant, staggered with a little rotation, each its own colour
+    const spots = [[38, 34, -8, 0], [112, 40, 7, 2], [36, 112, 10, 4], [110, 108, -6, 6]];
+    let g = "";
+    for (const [cx, cy, rot, ci] of spots) {
+      g += `<g stroke="${cols[ci]}" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" transform="translate(${cx} ${cy}) rotate(${rot}) scale(${s}) translate(-12 -12)">${cam}</g>`;
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${T} ${T}">${g}</svg>`;
+    const uri = `url('data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, "%27")}')`;
+    return `<span class="add-pat" style="background-image:${uri}"></span>`;
+  }
   function lessonRow(l, due) {
     if (!CardArt) return `<button class="row" data-act="open-lesson" data-id="${l.id}">
       <span class="row__main"><span class="row__title">${esc(l.name)}</span>
@@ -1895,6 +1912,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     </div>`;
     const addTile = `<button data-act="cap-add-lib" aria-label="Add a page" style="aspect-ratio:3/4;border-radius:var(--s-3);border:2px dashed rgba(128,128,128,.5);background:transparent;color:inherit;display:flex;align-items:center;justify-content:center;cursor:pointer">${icon("add", "icon--lg")}</button>`;
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 1 of 4 · Add pages</div>
       <h1 class="t-h1">Add homework</h1>
       <p class="muted" style="margin-top:var(--s-2)">Take a photo of each page. You can add as many as you need.</p>

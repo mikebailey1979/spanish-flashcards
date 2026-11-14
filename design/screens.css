@@ -111,6 +111,13 @@
 :root[data-theme="light"] .screen__pat { opacity: .14; }
 :root[data-theme="dark"] .screen__pat { opacity: .09; }
 
+/* Add screen: a playful multi-colour tiled camera motif (real colours, so a
+   background-image tile, not the single-accent mask wash). Same fade + layer. */
+.add-pat { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .22;
+  background-repeat: repeat; background-position: center top; background-size: 150px auto;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0,0,0,.55) 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0,0,0,.55) 100%); }
+
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
 .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; gap: var(--s-5); opacity: .9; }
