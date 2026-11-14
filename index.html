@@ -1,28 +1,58 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#123d2a"><meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Español Cards">
-<link rel="manifest" href="manifest.webmanifest"><title>Spanish Flash Cards</title>
-<style>
-:root{color-scheme:light dark;--bg:#f4f1e9;--panel:#fffdf7;--ink:#17211c;--muted:#66716a;--green:#123d2a;--green2:#1e6948;--line:#d9ddd7;--bad:#a13232;--good:#177047;--badwash:#fae9e9;--goodwash:#e3f5e9}
-@media(prefers-color-scheme:dark){:root{--bg:#101512;--panel:#18201b;--ink:#f2f4ef;--muted:#aab5ad;--line:#354039;--green:#72c79b;--green2:#8ed5ae;--bad:#ff8c8c;--good:#79d8a5;--badwash:#301d1d;--goodwash:#173426}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,sans-serif;min-height:100dvh}
-button,input{font:inherit}.app{width:min(760px,100%);margin:auto;padding:max(18px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom))}
-header{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px}.brand{font-size:clamp(20px,5vw,28px);font-weight:850}.stats{font-size:12px;color:var(--muted);text-align:right}
-.progress{height:7px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:12px}.progress i{display:block;height:100%;background:var(--green2);transition:.3s}
-.meta{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin:0 3px 9px}.card{position:relative;min-height:420px;touch-action:manipulation}.card.mode-speak{min-height:560px}
-.face{position:absolute;inset:0;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:26px;box-shadow:0 10px 30px #0001;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transition:opacity .18s ease,visibility .18s}.back{opacity:0;visibility:hidden}.revealed .front{opacity:0;visibility:hidden}.revealed .back{opacity:1;visibility:visible}
-.label{text-transform:uppercase;letter-spacing:.13em;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:18px}.prompt,.answer{width:100%;min-width:0;padding:.1em 0 .14em;font-weight:850;font-size:clamp(29px,8vw,47px);line-height:1.14;overflow-wrap:anywhere}.hint{color:var(--muted);margin-top:12px}.controls{width:min(520px,100%);margin-top:28px}.inputrow{display:flex;gap:8px}.inputrow input{min-width:0;flex:1;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:14px;padding:14px}
-button{cursor:pointer}button:disabled{cursor:wait;opacity:.7}.primary,.choice,.speak,.override,.skip{border-radius:14px;padding:14px 17px;font-weight:760}.primary,.speak{border:0;background:var(--green);color:white}.speak{width:100%}.choices{display:grid;gap:9px}.choice,.override{background:var(--bg);color:var(--ink);border:1px solid var(--line);text-align:left}.skip{display:block;width:100%;margin-top:12px;border:0;background:transparent;color:var(--muted);text-decoration:underline;text-underline-offset:3px}.speechDivider{display:flex;align-items:center;gap:10px;margin:15px 0 10px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.speechDivider:before,.speechDivider:after{content:"";height:1px;flex:1;background:var(--line)}.feedback{min-height:28px;margin-top:13px;font-weight:850}.feedback.result{position:absolute;inset:0;z-index:4;margin:0;border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;overflow:hidden;pointer-events:none}.feedback.result.good{background:var(--goodwash);color:var(--good)}.feedback.result.bad{background:var(--badwash);color:var(--bad)}.resultAnswer{max-width:90%;color:var(--ink);font-size:clamp(27px,7vw,44px);font-weight:900;line-height:1.12;overflow-wrap:anywhere}.resultMark{display:block;font-weight:950;line-height:.8}.resultText{font-weight:900}.feedback.result.good .resultMark{font-size:clamp(92px,27vw,150px);animation:celebrate 1.1s cubic-bezier(.2,.85,.25,1) both}.feedback.result.good .resultText{font-size:clamp(28px,7vw,44px)}.feedback.result.bad .resultMark{font-size:clamp(52px,15vw,78px);animation:miss .75s ease-out both}.feedback.result.bad .resultText{max-width:90%;font-size:clamp(19px,5vw,28px)}.good{color:var(--good)}.bad{color:var(--bad)}
-.confettiBurst{position:fixed;inset:0;z-index:100;overflow:hidden;pointer-events:none}.confettiPiece{position:absolute;left:50%;top:38%;width:9px;height:16px;border-radius:2px;animation:confettiFly 1.2s cubic-bezier(.12,.7,.32,1) var(--d) both}@keyframes confettiFly{0%{opacity:1;transform:translate(-50%,-50%) rotate(0) scale(.7)}100%{opacity:0;transform:translate(calc(-50% + var(--x)),var(--y)) rotate(var(--r)) scale(1)}}
-@keyframes celebrate{0%{opacity:0;transform:scale(.65)}45%{opacity:1;transform:scale(1.14)}72%{transform:scale(.94)}100%{transform:scale(1)}}@keyframes miss{0%{opacity:0;transform:scale(.72)}55%{opacity:1;transform:scale(1.08)}100%{transform:scale(1)}}@media(prefers-reduced-motion:reduce){.feedback.result .resultMark{animation:none!important}.confettiBurst{display:none}}
-.next{position:absolute;inset:0;border:0;background:transparent;z-index:5;display:none}.revealed .next{display:block}.footer{text-align:center;margin-top:13px}.small{border:0;background:transparent;color:var(--muted);padding:8px}.micstatus{color:var(--muted);margin-top:12px;font-size:14px;min-height:20px}.override{display:block;width:100%;margin-top:10px;text-align:center}
-</style></head><body><main class="app">
-<header><div class="brand">Español • Flash Cards</div><div class="stats" id="stats"></div></header>
-<div class="progress"><i id="progress"></i></div><div class="meta"><span id="category"></span><span id="mode"></span></div>
-<div class="scene"><section class="card" id="card">
-<div class="face front"><div class="label" id="direction"></div><div class="prompt" id="prompt"></div><div class="controls" id="controls"></div><div class="feedback" id="feedback" role="status" aria-live="assertive"></div></div>
-<div class="face back"><div class="label">Answer</div><div class="answer" id="answer"></div><div class="hint" id="pair"></div><div class="hint">Tap anywhere for the next card</div></div>
-<button class="next" id="next" aria-label="Next card"></button></section></div>
-<div class="footer"><button class="small" id="reset">Reset progress</button></div></main>
-<script src="answer-utils.js?v=8" defer></script><script src="vocabulary.js?v=8" defer></script><script src="app.js?v=8" defer></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2273C4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#081A33" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Aliyah's">
+<title>Aliyah's Flashcards</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="stylesheet" href="design/tokens.css">
+<link rel="stylesheet" href="design/fonts.css">
+<link rel="stylesheet" href="design/base.css">
+<link rel="stylesheet" href="design/motion.css">
+<link rel="stylesheet" href="design/components.css">
+<link rel="stylesheet" href="design/screens.css">
+<link rel="stylesheet" href="design/auth.css">
+</head>
+<body>
+<div id="app" class="app"><!-- screens render here --></div>
+
+<!-- Data layer (UMD globals), dependency order -->
+<script src="answer-utils.js" defer></script>
+<script src="vocabulary.js" defer></script>
+<script src="src/model/model.js" defer></script>
+<script src="src/srs/scheduler.js" defer></script>
+<script src="src/match/matcher.js" defer></script>
+<script src="src/store/store.js" defer></script>
+<script src="src/store/idb-adapter.js" defer></script>
+<script src="src/io/export-import.js" defer></script>
+<script src="src/seed/seed-data.js" defer></script>
+<script src="src/seed/seed.js" defer></script>
+<script src="src/auth/auth.js" defer></script>
+<script src="src/sync/sync.js" defer></script>
+<script src="src/sync/supabase-transport.js" defer></script>
+<script src="src/account/account.js" defer></script>
+<script src="src/io/import.js" defer></script>
+<script src="src/ai/ai-adapter.js" defer></script>
+<script src="src/roleplay/roleplay.js" defer></script>
+<!-- UI controller -->
+<script src="config.js" defer></script>
+<script src="main.js" defer></script>
+<!-- Offline-first service worker (R5). Network-first, so it never serves stale
+     code while online; falls back to cache for offline study. -->
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>
