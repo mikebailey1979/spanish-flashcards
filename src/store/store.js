@@ -200,7 +200,7 @@
       return scheduler.selectDue(items, now, limit);
     }
 
-    // ---- content management (Phase 4) -----------------------------------
+    // ---- content management ----------------------------------------------
     //  Lesson rename/merge/split/delete + restore, and card edit/add/move/delete.
     //  Deleting tombstones (deletedAt) so sync + 7-day undo work; per-word PROGRESS
     //  is keyed by cardId and never touched, so it survives move/merge/split/restore.
@@ -368,7 +368,7 @@
       // content
       putDeck, putLesson, putCard, listDecks, listLessons, listCards, cardsByIds,
       getLesson, getCard,
-      // content management (Phase 4)
+      // content management
       renameLesson, deleteLesson, restoreLesson, listDeletedLessons,
       mergeLessons, splitLesson, moveCard,
       editCard, addCard, deleteCard, restoreCard, listDeletedCards, purgeExpired,

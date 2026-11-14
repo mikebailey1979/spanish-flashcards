@@ -1,5 +1,5 @@
 "use strict";
-// Phase 4 — lesson + word content-management methods on the store.
+// Lesson + word content-management methods on the store.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const model = require("../src/model/model.js");

@@ -1,4 +1,4 @@
-/* Aliyah's Flashcards — Phase 1 UI controller.
+/* Aliyah's Flashcards — UI controller.
    Core study loop + Home/Lessons on the existing data layer (es→en type).
    Invisible-SRS query, ratings, choose/speak, Progress/Me come in later phases. */
 "use strict";
@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await store.putUser(demoUser);
   }
   let user = demoUser;                                        // active account (swapped in on sign-in)
-  let ctx = store.studyContext(user);                         // swapped during emulation (Phase 5d)
+  let ctx = store.studyContext(user);                         // swapped during emulation
   let emu = null;                                             // {targetId, name, countOwn} while Viewing as
   let lessons = [];                                          // populated by refreshContent() before first paint
   const cardLesson = {};                                    // card.id -> lesson, for grouping due counts
@@ -491,7 +491,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     </section>`);
   }
 
-  // ---- direction, mode + bidirectional grading (Phase 3) -------------------
+  // ---- direction, mode + bidirectional grading -------------------
   const DIRS = ["es-en", "en-es"];
   // Speak mode is available when the backend is on (Azure STT, reliable on iOS) OR the
   //  browser has its own SpeechRecognition (local/offline / desktop).
@@ -506,7 +506,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   const promptOf = (c, dir) => dir === "es-en" ? c.front : c.back;   // what she sees
   const answerOf = (c, dir) => dir === "es-en" ? c.back : c.front;   // what's correct
-  // Resolve a card's spelling tolerance (Phase 4d): strictMode "follow" defers to
+  // Resolve a card's spelling tolerance: strictMode "follow" defers to
   // the global Exact setting; "exact"/"forgiving" override it. Accents always ignored.
   const ALL_STRICT = { article: true, plural: true, typo: true };
   function exactSetting() { try { return localStorage.getItem("aliyah.exact") === "on"; } catch { return false; } }
@@ -596,7 +596,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ---- selection: pull-regardless-of-due so study is never empty -----------
-  const SESSION_SIZE = 20;   // default batch; Me "session length" (Full/10/20/30) is Phase 5
+  const SESSION_SIZE = 20;   // default batch; overridden by the Me "session length" preference (Full/10/20/30)
   const weakness = (srs) => !srs || srs.reps === 0 ? 1000 : srs.lapses * 10 + (srs.difficulty || 5) * 2 + (srs.reps < 3 ? 3 : 0);
   async function practicePool(ls) {
     const ids = [...new Set(ls.flatMap((l) => l.cardIds))];
@@ -615,7 +615,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     return size ? queue.slice(0, size) : queue;
   }
-  function sessionSize() {   // Me "session length" preference; picker UI is Phase 5
+  function sessionSize() {   // Me "session length" preference
     try { const v = localStorage.getItem("aliyah.sessionSize"); return v === "full" ? null : (v ? +v : SESSION_SIZE); }
     catch { return SESSION_SIZE; }
   }
@@ -1012,7 +1012,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // ---- Speak mode (Phase 3b): Web Speech API, never auto-submits ----------
+  // ---- Speak mode: Web Speech API, never auto-submits ----------
   function speakControls() {
     const sp = S.speak;
     if (sp.phase === "blocked") {
@@ -1212,7 +1212,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function closeExit() { app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove()); }
 
-  // ---- lesson management (Phase 4b) ---------------------------------------
+  // ---- lesson management ---------------------------------------
   function closeSheet() { app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove()); }
   function sheet(html) {
     closeSheet();
@@ -1317,7 +1317,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await refreshContent(); renderRecentlyDeleted();
   }
 
-  // ---- merge + split (Phase 4c) -------------------------------------------
+  // ---- merge + split -------------------------------------------
   let mergeState = null;
   function openMerge(id) {
     const target = lessons.find((x) => x.id === id); if (!target) return;
@@ -1410,7 +1410,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await refreshContent(); splitState = null; await renderLessons();
   }
 
-  // ---- word editing (Phase 4d) --------------------------------------------
+  // ---- word editing --------------------------------------------
   let editWordState = null;
   function syncWordFields() {
     if (!editWordState) return;
@@ -1524,7 +1524,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   async function startTricky() { startWith(trickyCards(await loadData())); }
 
-  // ---- Me / settings (Phase 5a) -------------------------------------------
+  // ---- Me / settings -------------------------------------------
   const getPref = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
   const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   function pronOn() { return getPref("aliyah.pronunciation", "on") !== "off"; }
@@ -1635,9 +1635,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  // ---- Delete account (Phase 5b, board 31/33) -----------------------------
+  // ---- Delete account -----------------------------
   //  Demo models deletion as a 4-week pending flag + restore (the designed window).
-  //  Real tombstone + cross-device purge hooks account.deleteAccount at Phase 5c.
+  //  The real tombstone + cross-device purge lives in account.deleteAccount (not yet wired to this demo flow).
   function deletePendingDate() { try { return localStorage.getItem("aliyah.deletePending"); } catch { return null; } }
   async function openDeleteAccount() {
     // Sole-admin guard: the last admin can't delete their account (would leave the
@@ -1686,7 +1686,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function restoreAccount() { try { localStorage.removeItem("aliyah.deletePending"); } catch {} renderMe(); }
 
-  // ---- Install guide (Phase 5b, board 16 E3) — Safari, one time -----------
+  // ---- Install guide — Safari, one time -----------
   let installChecked = false;
   function isStandalone() { return navigator.standalone === true || matchMedia("(display-mode: standalone)").matches; }
   function maybeShowInstallGuide() {
@@ -1711,7 +1711,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function dismissInstall() { try { localStorage.setItem("aliyah.installSeen", "1"); } catch {} app.querySelectorAll(".scrim, .sheet").forEach((n) => n.remove()); }
 
-  // ---- People with access + emulation (Phase 5d) --------------------------
+  // ---- People with access + emulation --------------------------
   //  Admin-only. Invite writes a local user record here; the real DB allowlist
   //  write goes through auth RPCs once the backend is live. Emulation uses the
   //  engine's non-persisting preview (or a separate admin@as track if opted in).
@@ -1822,7 +1822,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
 
-  // ---- Phase 6: AI capture (photo -> OCR -> review -> lesson) --------------
+  // ---- AI capture (photo -> OCR -> review -> lesson) --------------
   //  6a: C1 add-pages + C2 reading, against a MOCK proposer. The real
   //  importFromPhoto (Claude vision via a Netlify Function) swaps in at 6e;
   //  segmentation review (C3) + word HITL (C4/H3) + import commit land in 6b/6c.
@@ -2343,11 +2343,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ---- logged-out screens: Sign in + Not on the list -----------------------
   //  Photo treatment per the sign-in handoff. These are the ONLY screens that use
   //  the photo/navy ground; everything after sign-in keeps the blue --ground.
-  //  PHASE 5: there is no real Google OAuth yet. The real app still boots straight
-  //  to Home (demo user); these screens are reachable only via a dev route
-  //  (#dev=signin / #dev=notonlist), and "Continue" just crossfades to the
-  //  not-on-list state so the designed transition is demoable. Replace the dev
-  //  route + the button handlers below with real auth + allowlist in Phase 5.
+  //  These are the real sign-in screens when a backend is configured: shown when
+  //  no one is signed in, or when a signed-in email isn't on the allowlist. With
+  //  no backend the app stays in demo mode and boots straight to Home. A dev route
+  //  (#dev=signin / #dev=notonlist) also opens them for design review.
   const GOOGLE_G = `<svg class="auth__g" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`;
 
   function authMarkup(email) {
@@ -2453,7 +2452,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "study-all" || act === "keep-practicing") startSession(lessons);
     else if (act === "resume") resumeSession();
     else if (act === "new-session") { clearResume(); renderHome(); }
-    // Phase 6 capture
+    // capture
     else if (act === "cap-add-lib") capInputs().lib.click();
     else if (act === "cap-add-cam") capInputs().cam.click();
     else if (act === "cap-remove") { if (capture) { capture.pages = capture.pages.filter((p) => p.id !== id); renderCapture(); } }
@@ -2503,7 +2502,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "close-rating") closeRating();
     else if (act === "exit-study") openExit();
     else if (act === "close-exit") closeExit();
-    // lesson management (Phase 4b)
+    // lesson management
     else if (act === "lesson-menu") openLessonMenu(id);
     else if (act === "lesson-rename") openRename(id);
     else if (act === "lesson-rename-save") doRename(id);
@@ -2514,14 +2513,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "lesson-restore") restoreFromList(id);
     else if (act === "word-restore") restoreDeletedWord(id);
     else if (act === "close-sheet") closeSheet();
-    // merge + split (Phase 4c)
+    // merge + split
     else if (act === "lesson-merge") openMerge(id);
     else if (act === "merge-pick") mergePick(id);
     else if (act === "merge-confirm") doMerge();
     else if (act === "lesson-split") renderSplit(id);
     else if (act === "split-at") splitAt(t.dataset.i);
     else if (act === "split-confirm") doSplit(id);
-    // word editing (Phase 4d)
+    // word editing
     else if (act === "word-edit") openEditWord(id, lid);
     else if (act === "word-add") openAddWord(id);
     else if (act === "word-strict") wordStrict(t.dataset.val);
@@ -2554,7 +2553,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "rp-exit") exitRoleplay();
     else if (act === "rp-log") renderRoleplayLog();
     else if (act === "rp-log-open") renderRoleplayTranscript(id);
-    // People + emulation (Phase 5d)
+    // People + emulation
     else if (act === "people") renderPeople();
     else if (act === "invite-open") openInvite();
     else if (act === "invite-role") inviteRoleSet(t.dataset.val);
@@ -2577,14 +2576,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (e.target.dataset && e.target.dataset.act === "rp-send-form") { e.preventDefault(); sendRoleplay(); }
   });
 
-  // ---- auth gate (Phase 5c) — INERT unless configured ----------------------
+  // ---- auth gate — INERT unless configured ----------------------
   //  Set localStorage "aliyah.supabase" = {"url":"https://api.aliyahsflashcards.com",
   //  "anonKey":"<ANON_KEY>"} to turn real Google sign-in on. With no config the app
   //  stays in local demo mode and boots straight to Home exactly as before.
   //  Backend prerequisites (Mike runs): Google enabled on the box's GoTrue + a Google
   //  OAuth client + SITE_URL = the Netlify origin. See PROGRESS.md.
-  //  NOTE: per-account data binding + cross-device sync land once the backend is live;
-  //  for now the signed-in gate decides access, and local data stays on the demo store.
+  //  When the backend is configured, the signed-in account's data binds and syncs
+  //  across devices (see activateAccount); with no backend the app uses the local demo store.
   //  Backend config resolution: an explicit localStorage override wins (dev/testing),
   //  then the baked-in prod default from config.js (null until the anon key is filled
   //  in, and only on a prod host). `aliyah.demo=1` forces demo mode anywhere.

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Card art (Phase: visual theme) — deterministic per-lesson watermark art.
+ * Card art — deterministic per-lesson watermark art.
  *
  * Every lesson card (home + lessons) and the Continue/Resume hero gets:
  *   - an accent COLOR (left edge, pill, icon, pattern tint),
