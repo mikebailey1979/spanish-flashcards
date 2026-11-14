@@ -280,18 +280,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       <button class="btn btn--primary" data-act="pron-consent-ok" data-say="${esc(word)}">Got it, let’s try</button>
       <button class="btn btn--secondary" data-act="close-sheet">Not now</button>`);
   }
-  // Grant the mic + wake the audio input as soon as the Record sheet opens, so the
-  //  first Record tap isn't racing the permission prompt (a big cause of a dropped
-  //  first attempt on iOS). Permission is cached, so the SDK's own capture is instant.
-  let _micPrimed = false;
-  function primeMic() {
-    if (_micPrimed || !pronSupported()) return;
-    try {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((s) => { _micPrimed = true; s.getTracks().forEach((t) => t.stop()); })
-        .catch(() => {});
-    } catch {}
-  }
   function openPronounce(word) {
     if (!word) return;
     if (!pronSupported()) {
@@ -300,7 +288,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (!pronConsent()) return renderPronConsent(word);
     try { loadSpeechSdk().catch(() => {}); } catch {}   // warm the ~1MB SDK while she reads, so Record is fast
-    primeMic();                                         // grant + wake the mic now, before she taps Record
     sheet(`<div class="sheet__title">Say “${esc(word)}”</div>
       <div id="pron-body" class="sheet__text" style="min-height:72px;text-align:center">Tap <b>Record</b> and say it out loud.</div>
       <button class="btn btn--primary" data-act="pron-record" data-say="${esc(word)}">${icon("mic", "icon--sm")} Record</button>
@@ -904,7 +891,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="idk-link" data-act="idk">I don't know</button></div>`;
     } else if (S.mode === "speak") {
       controls = speakControls();
-      if (aiReady()) { try { loadSpeechSdk().catch(() => {}); } catch {} primeMic(); }   // warm Azure STT + mic before she taps
+      if (aiReady()) { try { loadSpeechSdk().catch(() => {}); } catch {} }   // warm the Azure STT SDK (no mic open until she records)
     } else {
       const ph = S.dir === "es-en" ? "type the English translation" : "type the Spanish translation";
       controls = `<form id="answer-form" class="study__controls">
@@ -983,7 +970,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Prefer Azure STT when the backend is on (works on iOS). The browser
     //  SpeechRecognition below is the local/offline fallback only.
     if (aiReady()) {
-      primeMic();
       S.speak = { ...S.speak, phase: "listening", rec: null, note: "" }; renderCard();
       let text = "";
       try { text = (await recognizeSpeech(azureLang(S.dir))).replace(/[.,!?¡¿]+$/g, "").trim(); }
