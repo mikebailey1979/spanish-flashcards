@@ -9,3 +9,10 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# Migration: the app used to live at /app/ during testing. Forward any lingering
+# /app/… bookmark or home-screen install to the same path at the root.
+[[redirects]]
+  from = "/app/*"
+  to = "/:splat"
+  status = 301
