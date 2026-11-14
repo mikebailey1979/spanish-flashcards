@@ -7,3 +7,15 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# The real app is the PWA under /app/. The repo root still holds the legacy
+# standalone app, so send the apex there. `force = true` is required because a
+# file (the old index.html) exists at "/", and we want the redirect to win.
+# Only the exact apex is redirected — the app's shared root assets
+# (/answer-utils.js, /vocabulary.js, /src/...) are untouched. 302 for now (easy to
+# change) — switch to 301 once we're sure the app stays at /app/.
+[[redirects]]
+  from = "/"
+  to = "/app/"
+  status = 302
+  force = true
