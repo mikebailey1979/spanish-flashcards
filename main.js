@@ -656,15 +656,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ---- screens -------------------------------------------------------------
   async function renderHome() {
     if (!lessons.length) return renderFirstRun();
+    setView("home");
     const D = await loadData();
     const due = await dueList(lessons);
     const byLesson = {};
     for (const c of due) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
     const st = streak(D), tricky = trickyCards(D).length;
     const resume = getResume();
-    let hero;
+    let hero, heroLessonId = null;
     if (resume) {
       const rl = cardLesson[resume.ids[resume.idx]];
+      heroLessonId = rl ? rl.id : null;
       const left = resume.total - resume.idx, pct = resume.total ? Math.round(resume.idx / resume.total * 100) : 0;
       hero = `<div class="hero">
         <div class="t-caps hero__label">Resume</div>
@@ -679,6 +681,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       </div>`;
     } else if (due.length) {
       const l = cardLesson[due[0].id], n = byLesson[l.id] || due.length;
+      heroLessonId = l.id;
       hero = `<div class="hero">
         <div class="t-caps hero__label">Continue</div>
         <div class="t-title">${esc(l.name)}</div>
@@ -700,14 +703,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       <span class="row__main"><span class="row__title">Practice tricky words</span>
         <span class="row__meta">The ones that need another look</span></span>
       ${tricky ? `<span class="pill">${tricky}</span>` : ""}</button>`;
-    const list = lessons.map((l) => lessonRow(l, byLesson[l.id] || 0)).join("");
+    // Home shows only lessons with words due now (minus the one already in the hero);
+    // the full lesson catalog lives on the Lessons tab, so we don't duplicate it here.
+    const moreDue = lessons.filter((l) => byLesson[l.id] && l.id !== heroLessonId);
+    const list = moreDue.map((l) => lessonRow(l, byLesson[l.id])).join("");
     mount(`<section class="screen screen--tabbed">
       <div class="home__head"><h1 class="t-h1">${esc(emu ? emu.name : user.displayName)}</h1>
         ${st ? `<span class="streak-pill">${icon("flame")}${st}-day streak</span>` : ""}</div>
       ${hero}
       ${trickyRow}
-      <div class="section-label"><span class="t-caps" style="opacity:.75">Your lessons</span></div>
-      <div class="list">${list}</div>
+      ${list ? `<div class="section-label"><span class="t-caps" style="opacity:.75">More to study</span>
+        <button class="chip" data-act="lessons" style="background:none;color:inherit;opacity:.8;cursor:pointer;border:0;font-weight:700">All lessons ${icon("chevron", "icon--sm")}</button></div>
+      <div class="list">${list}</div>` : ""}
     </section>${tabbar("home")}`);
     if (!installChecked) { installChecked = true; maybeShowInstallGuide(); }   // one-time Safari install prompt
   }
@@ -723,6 +730,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function renderLessons() {
+    setView("lessons");
     const due = await dueList(lessons);
     const byLesson = {};
     for (const c of due) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
@@ -743,6 +751,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function renderLessonDetail(id) {
     const l = lessons.find((x) => x.id === id);
     if (!l) return renderLessons();
+    setView("lesson", id);
     const D = await loadData();
     const cards = await store.cardsByIds(l.cardIds, ctx.contentOwnerId);
     const ready = cards.filter((c) => isReady(c.id, D)).length;
@@ -788,6 +797,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function renderProgress() {
+    setView("progress");
     const D = await loadData();
     if (!D.evs.length) {
       return mount(`<section class="screen screen--tabbed">
@@ -827,14 +837,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function renderTricky() {
+    setView("tricky");
     const D = await loadData();
     const tc = trickyCards(D);
     const head = `<div class="study-head__row" style="margin-bottom:var(--s-7)"><button class="study-head__exit" data-act="home">${icon("back")}</button><span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Tricky words</span></div>`;
     if (!tc.length) {
       return mount(`<section class="screen screen--tabbed">${head}
         <div class="empty"><i class="icon icon--star"></i><div class="empty__title">No tricky words right now</div>
-          <div class="empty__text">Words you miss a few times show up here so you can practice them. Keep going!</div>
-          <button class="btn btn--primary" data-act="lessons" style="max-width:260px">Back to lessons</button></div>
+          <div class="empty__text">Words you miss a few times show up here so you can practice them. Nothing to clean up — nice work!</div>
+          <button class="btn btn--primary" data-act="study-all" style="max-width:260px">Keep studying</button>
+          <button data-act="home" style="background:none;border:0;color:inherit;opacity:.85;font-weight:700;cursor:pointer;padding:var(--s-4)">Back to home</button></div>
       </section>${tabbar("home")}`);
     }
     const byLesson = {};
@@ -1459,6 +1471,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <span class="toggle" style="pointer-events:none"><input type="checkbox" ${on ? "checked" : ""} tabindex="-1" aria-hidden="true"><span class="track"></span><span class="knob"></span></span></button>`;
   }
   function renderMe() {
+    setView("me");
     const name = esc(user.displayName || "Me");
     mount(`<section class="screen screen--tabbed">
       <h1 class="t-h1" style="margin-bottom:var(--s-6)">Me</h1>
@@ -2291,14 +2304,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (reduceMotion()) return;
     const wrap = document.querySelector(".mark-wrap"); if (!wrap) return;
     const colors = ["var(--confetti-1)", "var(--confetti-2)", "var(--confetti-3)", "var(--confetti-4)"];
-    for (let i = 0; i < 10; i++) {
+    const N = 14;
+    for (let i = 0; i < N; i++) {
+      // radial burst: even angle around the circle + jitter, so pieces fly OUTWARD (not just down)
+      const ang = (i / N) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+      const dist = 150 + Math.random() * 120;
       const p = document.createElement("i");
       p.className = "confetti";
       p.style.background = colors[i % colors.length];
-      p.style.setProperty("--dx", Math.round((Math.random() - 0.5) * 380) + "px");
+      p.style.setProperty("--dx", Math.round(Math.cos(ang) * dist) + "px");
+      p.style.setProperty("--dy", Math.round(Math.sin(ang) * dist + 40) + "px"); // +40: gentle gravity
       p.style.setProperty("--rot", Math.round((Math.random() - 0.5) * 540) + "deg");
-      p.style.animationDelay = (Math.random() * 0.12).toFixed(2) + "s";
+      p.style.animationDelay = (Math.random() * 0.1).toFixed(2) + "s";
       wrap.appendChild(p);
+    }
+    // sparkles: a few twinkling stars scattered around the mark
+    const sparkleColors = ["#FFE08A", "#FFFFFF", "#FFD24D"];
+    for (let i = 0; i < 6; i++) {
+      const s = document.createElement("i");
+      s.className = "sparkle";
+      s.style.setProperty("--sparkle", sparkleColors[i % sparkleColors.length]);
+      s.style.setProperty("--sx", Math.round((Math.random() - 0.5) * 220) + "px");
+      s.style.setProperty("--sy", Math.round((Math.random() - 0.5) * 200) + "px");
+      s.style.animationDelay = (0.05 + Math.random() * 0.45).toFixed(2) + "s";
+      wrap.appendChild(s);
     }
   }
 
@@ -2578,28 +2607,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     else { await _recache(); }
     landFirst();                                    // allowed → per-account data (auto-resume if just backgrounded mid-study)
   }
-  // Keep a study session across a quick background/relaunch. iOS discards an
-  //  installed PWA when backgrounded, which reloads the app and drops the
-  //  in-memory session. We mark the moment we're backgrounded WHILE on the study
-  //  screen; on the next boot, if that was recent (< 30 min), go straight back in
-  //  instead of landing on Home. A longer gap falls through to Home + Resume card.
+  // Keep your place across a quick background/relaunch. iOS discards an installed
+  //  PWA when backgrounded, which reloads the app and drops in-memory state. We
+  //  record where you were WHEN backgrounded; on the next boot, if that was recent
+  //  (< 30 min) we return you there instead of always landing on Home. Mid-study
+  //  takes priority (jump back into the session); otherwise we restore the plain
+  //  screen you were on. A longer gap falls through to Home.
   const BG_STUDY_KEY = "aliyah.bgStudyAt";
-  function markBgIfStudying() {
+  const BG_VIEW_KEY = "aliyah.bgView";
+  let currentView = { v: "home" };
+  function setView(v, id) { currentView = { v, id }; }   // called by the top-level screens
+  function markBg() {
     if (S && S.queue && S.queue.length && document.querySelector('[data-act="exit-study"]')) {
       saveResume();
       try { localStorage.setItem(BG_STUDY_KEY, String(Date.now())); } catch {}
+      return;                                            // studying → study-resume path handles it
     }
+    // a plain screen: remember it (transient capture/study flows have their own resume)
+    try { localStorage.setItem(BG_VIEW_KEY, JSON.stringify({ ...currentView, at: Date.now() })); } catch {}
   }
-  document.addEventListener("visibilitychange", () => { if (document.hidden) markBgIfStudying(); });
-  window.addEventListener("pagehide", markBgIfStudying);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) markBg(); });
+  window.addEventListener("pagehide", markBg);
   async function landFirst() {
-    let recent = false;
+    let studyAt = 0, view = null;
     try {
-      const t = +localStorage.getItem(BG_STUDY_KEY) || 0;
+      studyAt = +localStorage.getItem(BG_STUDY_KEY) || 0;
+      const raw = localStorage.getItem(BG_VIEW_KEY);
+      view = raw ? JSON.parse(raw) : null;
       localStorage.removeItem(BG_STUDY_KEY);
-      recent = t && Date.now() - t < 30 * 60000;
+      localStorage.removeItem(BG_VIEW_KEY);
     } catch {}
-    if (recent && getResume()) return resumeSession();
+    const fresh = (t) => t && Date.now() - t < 30 * 60000;
+    // 1) mid-study, recently backgrounded → straight back into the session
+    if (fresh(studyAt) && getResume()) return resumeSession();
+    // 2) recently backgrounded on a plain screen → restore it
+    if (view && fresh(view.at) && view.v && view.v !== "home") {
+      if (view.v === "lessons") return renderLessons();
+      if (view.v === "progress") return renderProgress();
+      if (view.v === "me") return renderMe();
+      if (view.v === "tricky") return renderTricky();
+      if (view.v === "lesson" && view.id && lessons.find((l) => l.id === view.id)) return renderLessonDetail(view.id);
+    }
     return renderHome();
   }
   function boot() { authGate(); }

@@ -21,6 +21,8 @@
   --drift-a:rgba(96,166,240,.5); --drift-b:rgba(14,70,140,.42);
   --confetti-1:#BFF5D6; --confetti-2:#8FE3B5; --confetti-3:#FFE08A; --confetti-4:#FFFFFF;
   --glow-ok:rgba(190,255,215,.42); --glow-no:rgba(255,255,255,.6);
+  /* warm accent — streak flame, highlights, small pops of color against the blue */
+  --accent:#FF8A3D; --accent-2:#FFC24B; --accent-soft:rgba(255,154,61,.20);
 
   /* type: Sora 400/600/700/800, self-hosted WOFF2, Latin subset + áéíóúñü¿¡ */
   --font:'Sora',system-ui,-apple-system,'Segoe UI',sans-serif;
@@ -57,6 +59,7 @@
   --surface-1:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.14);
   --drift-a:rgba(50,100,170,.2); --drift-b:rgba(4,16,36,.5);
   --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,130,140,.24);
+  --accent:#FFA657; --accent-2:#FFD27A; --accent-soft:rgba(255,166,87,.18);
 }}
 :root[data-theme="dark"]{
   --ground:#081A33; --ground-lift:#0F2A50; --correct:#063D26; --notquite:#6E1A2C; --ink-on-notquite:#FFFFFF;
@@ -65,4 +68,5 @@
   --surface-1:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.14);
   --drift-a:rgba(50,100,170,.2); --drift-b:rgba(4,16,36,.5);
   --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,130,140,.24);
+  --accent:#FFA657; --accent-2:#FFD27A; --accent-soft:rgba(255,166,87,.18);
 }

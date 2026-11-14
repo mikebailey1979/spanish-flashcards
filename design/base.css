@@ -71,7 +71,7 @@ button { font: inherit; color: inherit; }
 .icon--speaker{-webkit-mask-image:url(icons/speaker.svg);mask-image:url(icons/speaker.svg)}
 .icon--mic{-webkit-mask-image:url(icons/mic.svg);mask-image:url(icons/mic.svg)}
 .icon--mic-off{-webkit-mask-image:url(icons/mic-off.svg);mask-image:url(icons/mic-off.svg)}
-.icon--flame{-webkit-mask-image:url(icons/flame.svg);mask-image:url(icons/flame.svg)}
+.icon--flame{-webkit-mask-image:url(icons/flame.svg);mask-image:url(icons/flame.svg);background:var(--accent)}
 .icon--eye{-webkit-mask-image:url(icons/eye.svg);mask-image:url(icons/eye.svg)}
 .icon--share{-webkit-mask-image:url(icons/share.svg);mask-image:url(icons/share.svg)}
 .icon--more{-webkit-mask-image:url(icons/more.svg);mask-image:url(icons/more.svg)}

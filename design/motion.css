@@ -23,10 +23,21 @@
 .is-notquite .pulse{background:radial-gradient(closest-side,var(--glow-no),transparent);animation:pulse-no var(--m-pulse-no) ease-out 1 both}
 @keyframes pulse-ok{0%{transform:scale(.5);opacity:.9}100%{transform:scale(9);opacity:0}}
 @keyframes pulse-no{0%{transform:scale(.5);opacity:.9}100%{transform:scale(9);opacity:0}}
-/* confetti: 10 pieces, once. JS sets --dx (-190..190px) and --rot per piece; colors from --confetti-1..4 */
-.confetti{position:absolute;left:50%;top:50%;width:10px;height:14px;border-radius:2px;pointer-events:none;
+/* confetti: pieces burst radially OUTWARD from the mark, once. JS sets --dx/--dy (radial) and --rot; colors from --confetti-1..4 */
+.confetti{position:absolute;left:50%;top:50%;width:9px;height:14px;border-radius:2px;pointer-events:none;
   animation:confetti var(--m-confetti) var(--ease-confetti) both}
-@keyframes confetti{0%{transform:translate(0,0) rotate(0);opacity:1}80%{opacity:1}100%{transform:translate(var(--dx),300px) rotate(var(--rot));opacity:0}}
+@keyframes confetti{
+  0%{transform:translate(0,0) rotate(0) scale(.5);opacity:0}
+  14%{opacity:1;transform:translate(calc(var(--dx)*.34),calc(var(--dy)*.34)) rotate(calc(var(--rot)*.3)) scale(1)}
+  100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(.9);opacity:0}}
+/* sparkle: four-point stars that twinkle around the mark. JS sets --sx/--sy per star */
+.sparkle{position:absolute;left:50%;top:50%;width:16px;height:16px;pointer-events:none;background:var(--sparkle,#FFE08A);
+  clip-path:polygon(50% 0,58% 42%,100% 50%,58% 58%,50% 100%,42% 58%,0 50%,42% 42%);
+  animation:sparkle var(--m-confetti) ease-out both}
+@keyframes sparkle{
+  0%{transform:translate(0,0) scale(0) rotate(0);opacity:0}
+  45%{opacity:1;transform:translate(var(--sx),var(--sy)) scale(1) rotate(50deg)}
+  100%{transform:translate(var(--sx),var(--sy)) scale(0) rotate(100deg);opacity:0}}
 /* sheets and keyboard */
 .sheet{transform:translateY(100%);transition:transform var(--m-sheet) cubic-bezier(.2,.8,.2,1)}.sheet.is-open{transform:none}
 .scrim{opacity:0;transition:opacity var(--m-sheet) ease}.scrim.is-open{opacity:1}
@@ -43,5 +54,5 @@
   .screen::before{display:block;opacity:.6}                      /* still, slightly lighter patch */
   .screen.is-correct .mark-wrap::before{content:"";position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(closest-side,var(--glow-ok),transparent)}
   .screen.is-notquite .mark-wrap::before{content:"";position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(closest-side,var(--glow-no),transparent)}
-  .confetti,.pulse{display:none}
+  .confetti,.pulse,.sparkle{display:none}
 }
