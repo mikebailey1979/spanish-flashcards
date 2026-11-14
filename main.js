@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch {}
   }
   document.addEventListener("pointerdown", warmTTS, true);   // first interaction unlocks iOS TTS
-  function speak(text, locale) {
+  function speakBrowser(text, locale) {
     try {
       const synth = window.speechSynthesis;
       if (!synth || !text) return;
@@ -90,6 +90,39 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (v) u.voice = v;
       synth.speak(u);
     } catch {}
+  }
+  // Primary "hear it": Azure neural TTS played through an <audio> element (the MEDIA
+  //  channel), so it is NOT silenced by the iPhone ring/silent switch — it just follows
+  //  the volume. The audio for on-screen words is prefetched on render (prefetchSpeakAudio,
+  //  in mount/sheet) so the tap plays a CACHED clip synchronously (iOS requires audio to
+  //  start inside the gesture). If it isn't cached yet, we fetch it for next time and fall
+  //  back to the browser voice for this one tap.
+  const _ttsCache = new Map();   // text -> data URL (null while a fetch is in flight)
+  const _ttsAudio = typeof Audio !== "undefined" ? new Audio() : null;
+  function ensureTtsAudio(text) {
+    if (!text || !aiReady() || _ttsCache.has(text)) return;
+    _ttsCache.set(text, null);   // mark in-flight (dedupe)
+    const ad = aiAdapter();
+    if (!ad) { _ttsCache.delete(text); return; }
+    ad.ttsAudio(text, "es-ES")
+      .then((r) => { if (r && r.audio) _ttsCache.set(text, r.audio); else _ttsCache.delete(text); })
+      .catch(() => _ttsCache.delete(text));
+  }
+  function prefetchSpeakAudio() {
+    if (!aiReady()) return;
+    const seen = new Set();
+    app.querySelectorAll('[data-act="speak"][data-say]').forEach((el) => {
+      const s = el.dataset.say; if (s && !seen.has(s)) { seen.add(s); ensureTtsAudio(s); }
+    });
+  }
+  function speak(text, locale) {
+    if (!text) return;
+    const url = _ttsCache.get(text);
+    if (url && _ttsAudio) {   // cached Azure clip → play in the tap gesture (media channel)
+      try { _ttsAudio.src = url; _ttsAudio.currentTime = 0; const p = _ttsAudio.play(); if (p && p.catch) p.catch(() => speakBrowser(text, locale)); return; } catch {}
+    }
+    ensureTtsAudio(text);           // warm Azure for next time
+    speakBrowser(text, locale);     // this tap: browser voice (ring channel / offline fallback)
   }
   // Explain-my-answer (R1): on-demand AI explanation in a bottom sheet.
   function aiAdapter() {
@@ -145,6 +178,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!body) return;
     if (r && r.es) body.outerHTML = `<div class="sheet__text"><div class="t-title" style="margin-bottom:4px">${esc(r.es)} <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(r.es)}" aria-label="Hear it" style="vertical-align:middle">${icon("speaker", "icon--sm")}</button></div><div class="muted">${esc(r.en || "")}</div></div>`;
     else { body.style.display = "block"; body.textContent = "Couldn’t write an example just now — try again in a moment."; }
+    if (r && r.es) ensureTtsAudio(r.es);   // warm Azure TTS for the example's speaker
   }
   // Translate-suggest (R1): fill a blank English field when adding a word.
   function mockSuggest(es) { return new Promise((r) => setTimeout(() => r({ text: es.replace(/^(el|la|los|las)\s+/i, "") + " (suggested)" }), 500)); }
@@ -246,6 +280,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       <button class="btn btn--primary" data-act="pron-consent-ok" data-say="${esc(word)}">Got it, let’s try</button>
       <button class="btn btn--secondary" data-act="close-sheet">Not now</button>`);
   }
+  // Grant the mic + wake the audio input as soon as the Record sheet opens, so the
+  //  first Record tap isn't racing the permission prompt (a big cause of a dropped
+  //  first attempt on iOS). Permission is cached, so the SDK's own capture is instant.
+  let _micPrimed = false;
+  function primeMic() {
+    if (_micPrimed || !pronSupported()) return;
+    try {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((s) => { _micPrimed = true; s.getTracks().forEach((t) => t.stop()); })
+        .catch(() => {});
+    } catch {}
+  }
   function openPronounce(word) {
     if (!word) return;
     if (!pronSupported()) {
@@ -254,6 +300,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (!pronConsent()) return renderPronConsent(word);
     try { loadSpeechSdk().catch(() => {}); } catch {}   // warm the ~1MB SDK while she reads, so Record is fast
+    primeMic();                                         // grant + wake the mic now, before she taps Record
     sheet(`<div class="sheet__title">Say “${esc(word)}”</div>
       <div id="pron-body" class="sheet__text" style="min-height:72px;text-align:center">Tap <b>Record</b> and say it out loud.</div>
       <button class="btn btn--primary" data-act="pron-record" data-say="${esc(word)}">${icon("mic", "icon--sm")} Record</button>
@@ -1046,6 +1093,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     closeSheet();
     app.insertAdjacentHTML("beforeend",
       `<div class="scrim" data-act="close-sheet"></div><div class="sheet"><div class="sheet__handle"></div>${html}</div>`);
+    prefetchSpeakAudio();   // warm Azure TTS for any speaker buttons in the sheet
   }
   function openLessonMenu(id) {
     const l = lessons.find((x) => x.id === id); if (!l) return;
@@ -2229,6 +2277,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ---- render + events -----------------------------------------------------
   function mount(html) {
     app.innerHTML = html; window.scrollTo(0, 0);
+    prefetchSpeakAudio();   // warm Azure TTS for any speaker buttons on this screen
     app.classList.toggle("emulating", !!emu);
     if (emu) app.insertAdjacentHTML("afterbegin",
       `<div class="emu-bar">${icon("eye")}<span class="emu-bar__txt"><b>Viewing as ${esc(emu.name)}</b><span>Nothing you do here is saved</span></span>

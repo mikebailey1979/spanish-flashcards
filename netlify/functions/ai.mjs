@@ -164,6 +164,35 @@ async function speechToken() {
   return { token: await r.text(), region };
 }
 
+// Text-to-speech (R1): Azure neural TTS. Returns an mp3 data URL so the client plays
+//  it via an <audio> element — i.e. through the MEDIA channel, which (unlike the
+//  browser's speechSynthesis) is NOT silenced by the iPhone ring/silent switch and
+//  just follows the volume. Reuses the existing Azure Speech resource.
+function xmlEscape(s) {
+  return String(s == null ? "" : s).replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
+}
+async function ttsAudio(text, lang) {
+  const key = process.env.AZURE_SPEECH_KEY, region = process.env.AZURE_SPEECH_REGION;
+  if (!key || !region) return { error: "not_configured" };
+  const en = lang && /^en/i.test(lang);
+  const voice = en ? "en-US-AvaNeural" : "es-ES-ElviraNeural";
+  const xlang = en ? "en-US" : "es-ES";
+  const ssml = `<speak version='1.0' xml:lang='${xlang}'><voice name='${voice}'><prosody rate='-8%'>${xmlEscape(text)}</prosody></voice></speak>`;
+  const r = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+    method: "POST",
+    headers: {
+      "Ocp-Apim-Subscription-Key": key,
+      "Content-Type": "application/ssml+xml",
+      "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
+      "User-Agent": "aliyahs-flashcards",
+    },
+    body: ssml,
+  });
+  if (!r.ok) throw new Error("tts " + r.status + " " + (await r.text().catch(() => "")));
+  const buf = Buffer.from(await r.arrayBuffer());
+  return { audio: "data:audio/mpeg;base64," + buf.toString("base64") };
+}
+
 // Pronunciation (R2): Claude turns the Azure scores into one warm, kid-friendly tip.
 async function coachPronunciation(word, scores) {
   const s = scores || {};
@@ -308,6 +337,10 @@ export const handler = async (event) => {
     }
     if (op === "coachPronunciation") {
       const r = await coachPronunciation(args[0], args[1]);
+      return { statusCode: 200, headers, body: JSON.stringify(r) };
+    }
+    if (op === "ttsAudio") {
+      const r = await ttsAudio(args[0], args[1]);
       return { statusCode: 200, headers, body: JSON.stringify(r) };
     }
     if (op === "roleplayTurn") {
