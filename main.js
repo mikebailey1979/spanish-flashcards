@@ -1594,7 +1594,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="row" data-act="sign-out"><span class="row__main"><span class="row__title">Sign out</span></span>${icon("chevron", "icon--sm")}</button>
         <button class="row" data-act="delete-account"><span class="row__main"><span class="row__title" style="color:var(--destructive)">Delete account</span></span>${icon("chevron", "icon--sm")}</button>
       </div>
-      <div class="muted" style="margin-top:var(--s-6)">People &amp; invites come with real sign-in (Phase 5).</div>
     </section>${tabbar("me")}`);
   }
   function toggleExact() { setPref("aliyah.exact", exactSetting() ? "off" : "on"); renderMe(); }
@@ -1620,7 +1619,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Your data</span>
       </div>
       <div class="section-label"><span class="t-caps" style="opacity:.75">Sync</span></div>
-      <div class="banner"><span>All changes saved</span><span class="t-label" style="color:var(--sheet-muted)">On this device. Sign in to sync across devices (Phase 5).</span></div>
+      <div class="banner"><span>All changes saved</span><span class="t-label" style="color:var(--sheet-muted)">${_sync ? "Backed up to your account and synced across your devices." : "Saved on this device."}</span></div>
       <div class="section-label" style="margin-top:var(--s-7)"><span class="t-caps" style="opacity:.75">Export my data</span></div>
       <div class="muted" style="margin-bottom:var(--s-5)">Download everything you have in the app — lessons, words and progress — as one file. The file is made on your phone. Nothing is sent to anyone.</div>
       <button class="btn btn--primary" data-act="export-data">Export</button>
