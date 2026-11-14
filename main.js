@@ -387,7 +387,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           <button type="button" class="rp-send" data-act="rp-send" ${rp.busy ? "disabled" : ""} aria-label="Send">${icon("chevron", "icon--sm")}</button>
         </form>
         ${rp.error ? `<div class="muted" style="text-align:center;margin-top:var(--s-3)">Couldn't reach the chat just now — try sending again.</div>` : ""}`;
-    mount(`<section class="screen rp-screen">
+    const sp = screenPat("roleplay");
+    mount(`<section class="screen rp-screen"${sp.style}>
+      ${sp.patHTML}
       <div class="study-head__row rp-head">
         <button class="study-head__exit" data-act="rp-exit" aria-label="Leave chat">${icon("close")}</button>
         <span class="rp-head__title">${scenario.emoji} ${esc(scenario.title)}</span>
@@ -466,7 +468,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       <span class="row__main"><span class="row__title">${esc(nameOf(s.userId))} · ${esc(scnTitle(s.scenarioId))}</span>
       <span class="row__meta">${esc(s.lessonName || "")}${s.lessonName ? " · " : ""}${esc(String(s.startedAt).slice(0, 10))} · ${s.turns.filter((t) => t.role === "learner").length} replies</span></span>${icon("chevron", "icon--sm")}</button>`).join("")
       : `<div class="placeholder">${icon("me")}<div class="t-title">No pretend chats yet</div><div class="muted">Transcripts show up here once someone practices one.</div></div>`;
-    mount(`<section class="screen screen--tabbed">
+    const sp = screenPat("roleplay");
+    mount(`<section class="screen screen--tabbed"${sp.style}>
+      ${sp.patHTML}
       <div class="study-head__row" style="margin-bottom:var(--s-6)">
         <button class="study-head__exit" data-act="people">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Pretend-chat transcripts</span></div>
@@ -482,7 +486,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (t.moderation) return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--redirect">Message hidden (${esc(t.moderation.reason || "off-topic")})</div></div>`;
       return `<div class="rp-row rp-row--me"><div class="rp-bubble rp-bubble--me">${esc(t.es)}</div></div>`;
     }).join("");
-    mount(`<section class="screen rp-screen">
+    const sp = screenPat("roleplay");
+    mount(`<section class="screen rp-screen"${sp.style}>
+      ${sp.patHTML}
       <div class="study-head__row rp-head">
         <button class="study-head__exit" data-act="rp-log">${icon("back")}</button>
         <span class="rp-head__title">${scn ? scn.emoji + " " + esc(scn.title) : esc(s.scenarioId)}</span><span style="width:40px"></span></div>
@@ -1003,7 +1009,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           <button type="submit" class="btn btn--primary" id="check-btn" disabled>Check</button>
         </div></form>`;
     }
-    mount(`<section class="screen study">${studyHead()}<div class="study__stage">${stage}</div>${controls}</section>`);
+    const sp = screenPat("study");
+    mount(`<section class="screen study"${sp.style}>${sp.patHTML}${studyHead()}<div class="study__stage">${stage}</div>${controls}</section>`);
     const input = document.getElementById("answer-input");
     const checkBtn = document.getElementById("check-btn");
     if (input) {
@@ -1940,6 +1947,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return `<div style="display:flex;align-items:center;gap:var(--s-3);padding:var(--s-3) 0;opacity:${state === "todo" ? ".5" : "1"}">${mark}<span>${s}${state === "active" && i === 1 && n ? ` (1 of ${n})` : ""}</span></div>`;
       }).join("");
       mount(`<section class="screen screen--tabbed">
+        ${cameraFieldHTML()}
         <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 2 of 4 · Reading</div>
         <h1 class="t-h1">Reading your pages</h1>
         <div style="margin-top:var(--s-5)">${rows}</div>
@@ -1997,6 +2005,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return card(l, i) + merge;
     }).join("");
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 3 of 4 · Check the lessons</div>
       <h1 class="t-h1">We found ${lessons.length} lesson${lessons.length === 1 ? "" : "s"}</h1>
       <p class="muted" style="margin-top:var(--s-2)">Does this match your homework? Rename, split, or merge. Nothing is saved yet.</p>
@@ -2046,6 +2055,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <span class="row__main"><span class="row__title">${esc(s.cat)}</span><span class="row__meta">${s.words.length} word${s.words.length === 1 ? "" : "s"}</span></span></button>`;
     }).join("");
     mount(`<section class="screen">
+      ${cameraFieldHTML()}
       <div class="study-head__row" style="margin-bottom:var(--s-5)">
         <button class="study-head__exit" data-act="seg-back">${icon("back")}</button>
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Split lesson</span></div>
@@ -2107,6 +2117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const keepCount = l.sections.reduce((a, s) => a + s.words.filter((w) => w.keep).length, 0);
     const next = prop.lessons[R.idx + 1];
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Step 4 of 4 · Check the words · Lesson ${R.idx + 1} of ${prop.lessons.length}</div>
       <h1 class="t-h1" style="font-size:var(--t-title)">${esc(l.name)}</h1>
       <p class="muted" style="margin-top:4px">Untick any word you don’t want. Tap a word to fix it.</p>
@@ -2169,6 +2180,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const name = ((emu ? emu.name : user.displayName) || "").split(" ")[0];
     const rows = saved.map((s) => `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title">${esc(s.name)}</span><span class="row__meta">${s.count} word${s.count === 1 ? "" : "s"}</span></span>${icon("check", "icon--sm")}</div>`).join("");
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="hero" style="align-items:center;text-align:center">
         <div class="mark" style="width:72px;height:72px;animation:none"><i class="mark__icon icon--check" style="background:var(--btn-text)"></i></div>
         <div class="t-hero" style="font-size:clamp(28px,8vw,40px)">¡Listo${name ? ", " + esc(name) : ""}!</div>
@@ -2182,6 +2194,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderCaptureProblem() {
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
       <h1 class="t-h1">We couldn’t read those</h1>
       <div class="placeholder" style="margin-top:var(--s-5)">${icon("offline")}<div class="t-title">Something interrupted the scan</div><div class="muted">Your photos are safe on this phone. Try again in a moment.</div></div>
@@ -2214,6 +2227,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // C5 capture problem states — calm blue, blame neither her nor the photo.
   function renderCapOffline() {
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
       <h1 class="t-h1">You’re offline</h1>
       <div class="placeholder" style="margin-top:var(--s-5)">${icon("offline")}<div class="t-title">Reading new pages needs the internet</div><div class="muted">Your photos are safe on this phone. Studying still works offline.</div></div>
@@ -2225,6 +2239,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function renderCapNoWords() {
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
       <h1 class="t-h1">We couldn’t find any words</h1>
       <div class="placeholder" style="margin-top:var(--s-5)">${icon("search")}<div class="t-title">No printed Spanish found</div><div class="muted">The page may be too dark or cropped, or it’s handwriting. Printed vocabulary lists read best.</div></div>
@@ -2247,6 +2262,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       </div>`;
     }).join("");
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
       <h1 class="t-h1">${bad.length === 1 ? "One page needs a retake" : bad.length + " pages need a retake"}</h1>
       <p class="muted" style="margin-top:var(--s-2)">Page${bad.length > 1 ? "s" : ""} ${bad.join(", ")} came out too blurry to read.${good.length ? ` Page${good.length > 1 ? "s" : ""} ${good.join(", ")} ${good.length > 1 ? "are" : "is"} fine.` : ""}</p>
@@ -2275,6 +2291,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function renderCapPending() {
     mount(`<section class="screen screen--tabbed">
+      ${cameraFieldHTML()}
       <div class="t-caps" style="opacity:.6;margin-bottom:var(--s-2)">Reading</div>
       <h1 class="t-h1">Photo reading is almost ready</h1>
       <div class="placeholder" style="margin-top:var(--s-5)">${icon("camera")}<div class="t-title">Being set up</div><div class="muted">The photo-to-flashcards reader is being switched on. Your pages are safe on this phone.</div></div>
@@ -2327,7 +2344,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function renderAllSet() {
-    mount(`<section class="screen">
+    const sp = screenPat("study");
+    mount(`<section class="screen"${sp.style}>
+      ${sp.patHTML}
       <div class="study-head"><div class="study-head__row">
         <button class="study-head__exit" data-act="home">${icon("close")}</button>
       </div></div>

@@ -118,6 +118,11 @@
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0,0,0,.55) 100%);
   mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0,0,0,.55) 100%); }
 
+/* Hide any wash/motif during the full-bleed correct/not-quite answer flash —
+   the state colour is the design there; a motif over it would fight it. */
+.screen.is-correct .screen__pat, .screen.is-notquite .screen__pat,
+.screen.is-correct .add-pat, .screen.is-notquite .add-pat { display: none; }
+
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
 .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; gap: var(--s-5); opacity: .9; }
