@@ -682,7 +682,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else if (due.length) {
       const l = cardLesson[due[0].id], n = byLesson[l.id] || due.length;
       heroLessonId = l.id;
-      hero = `<div class="hero">
+      const a = CardArt ? CardArt.card(l) : null;
+      hero = a ? `<div class="hero hero--art" style="--c:${a.color}">
+        ${a.patHTML}<span class="hero__wm">${CardArt.iconSvg(a.icon)}</span>
+        <div class="hero__inner">
+          <div class="t-caps hero__label">Continue</div>
+          <div class="t-title hero__ttl">${esc(l.name)}</div>
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span class="t-hero hero__num">${n}</span>
+            <span class="t-label" style="opacity:.85">words to study<br>${lessonProgress(l, D)}% of this lesson learned</span>
+          </div>
+          <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}">Study</button>
+        </div>
+      </div>` : `<div class="hero">
         <div class="t-caps hero__label">Continue</div>
         <div class="t-title">${esc(l.name)}</div>
         <div style="display:flex;align-items:baseline;gap:10px">
@@ -719,13 +731,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!installChecked) { installChecked = true; maybeShowInstallGuide(); }   // one-time Safari install prompt
   }
 
+  const CardArt = (typeof window !== "undefined" && window.SpanishFlashcardsCardArt) || null;
   function lessonRow(l, due) {
-    return `<button class="row" data-act="open-lesson" data-id="${l.id}">
-      <span class="row__main">
-        <span class="row__title">${esc(l.name)}</span>
-        <span class="row__meta">${l.cardIds.length} words</span>
-      </span>
-      ${due ? `<span class="pill">${due}</span>` : ""}
+    if (!CardArt) return `<button class="row" data-act="open-lesson" data-id="${l.id}">
+      <span class="row__main"><span class="row__title">${esc(l.name)}</span>
+        <span class="row__meta">${l.cardIds.length} words</span></span>
+      ${due ? `<span class="pill">${due}</span>` : ""}</button>`;
+    const art = CardArt.card(l);
+    return `<button class="lcard" data-act="open-lesson" data-id="${l.id}" style="--c:${art.color}">
+      ${art.patHTML}${art.wmHTML}
+      <span class="lcard__main"><span class="lcard__title">${esc(l.name)}</span>
+        <span class="lcard__meta">${l.cardIds.length} words</span></span>
+      ${due ? `<span class="lcard__pill">${due}</span>` : ""}
     </button>`;
   }
 

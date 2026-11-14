@@ -58,6 +58,41 @@
 .row--accent { background: #fff; color: var(--btn-text); }
 .row--accent .row__meta { opacity: .7; }
 
+/* ---- Lesson card art + hero art (per-lesson colour / icon / pattern) ------ */
+.lcard { position: relative; overflow: hidden; display: flex; align-items: center; gap: var(--s-5);
+  width: 100%; text-align: left; border: 0; cursor: pointer; color: inherit;
+  background: var(--surface-1); border-left: 5px solid var(--c, var(--accent));
+  border-radius: 6px var(--r-row) var(--r-row) 6px; padding: var(--s-5) var(--s-6); min-height: 84px; }
+.lcard__pat { position: absolute; inset: 0; z-index: 0; color: var(--c); pointer-events: none;
+  -webkit-mask-image: radial-gradient(circle 70px at calc(100% - 100px) 50%, transparent 0 45px, #000 72px);
+  mask-image: radial-gradient(circle 70px at calc(100% - 100px) 50%, transparent 0 45px, #000 72px); }
+.lcard__pat svg { display: block; width: 100%; height: 100%; }
+.lcard__wm { position: absolute; right: 60px; top: 50%; width: 82px; height: 82px; color: var(--c);
+  opacity: .5; transform: translateY(-50%) rotate(-13deg); pointer-events: none; z-index: 1; }
+.lcard__wm svg { display: block; width: 100%; height: 100%; }
+.lcard__main { position: relative; z-index: 2; flex: 1; min-width: 0; max-width: 54%;
+  display: flex; flex-direction: column; gap: 3px; }
+.lcard__title { font-size: 14px; font-weight: 700; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lcard__meta { font-size: 12px; font-weight: 600; opacity: .72; }
+.lcard__pill { position: relative; z-index: 2; margin-left: auto; flex: none; min-width: 28px; height: 26px;
+  padding: 0 9px; border-radius: var(--r-pill); background: var(--c); color: #06203b;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+
+.hero--art { position: relative; overflow: hidden; background: linear-gradient(135deg, #3A86D8, #1C5AA6);
+  box-shadow: inset 0 3px 0 rgba(255,210,122,.5); }
+.hero--art .lcard__pat { -webkit-mask-image: radial-gradient(circle 150px at 74% 40%, transparent 0 92px, #000 150px);
+  mask-image: radial-gradient(circle 150px at 74% 40%, transparent 0 92px, #000 150px); }
+.hero__wm { position: absolute; right: 24px; top: 40%; width: 128px; height: 128px; color: var(--c);
+  opacity: .3; transform: translateY(-50%) rotate(-12deg); pointer-events: none; z-index: 1; }
+.hero__wm svg { display: block; width: 100%; height: 100%; }
+.hero--art .hero__inner { position: relative; z-index: 2; display: flex; flex-direction: column; gap: var(--s-5); }
+.hero--art .hero__label { color: #FFD27A; opacity: 1; }
+.hero--art .hero__ttl, .hero--art .hero__num { text-shadow: 0 1px 4px rgba(4,16,36,.45); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hero--art { background: linear-gradient(135deg, #1C4E86, #0C2D52); } }
+:root[data-theme="dark"] .hero--art { background: linear-gradient(135deg, #1C4E86, #0C2D52); }
+:root[data-theme="light"] .hero--art { background: linear-gradient(135deg, #3A86D8, #1C5AA6); }
+
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
 .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; gap: var(--s-5); opacity: .9; }
