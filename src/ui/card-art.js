@@ -119,21 +119,23 @@
   };
 
   // Keyword → icon (first match wins; order specific → general). ES + EN cues.
+  // Order: specific → general. Short/ambiguous tokens are \b-bounded so a stray
+  // substring (e.g. "te" inside "tener") can't trigger the wrong icon.
   const KW = [
-    [/travel|airport|flight|plane|trip|viaj|aeropuerto|vuelo/, "plane"],
+    [/travel|airport|flight|\bplane\b|\btrip\b|viaj|aeropuerto|vuelo/, "plane"],
     [/vacation|vacacion|holiday|beach|playa|summer|verano|hotel/, "umbrella"],
-    [/fruit|fruta|apple|manzana/, "apple"],
-    [/breakfast|desayuno|coffee|caf[eé]|drink|bebida|tea|t[eé]/, "coffee"],
+    [/fruit|fruta|\bapple\b|manzana/, "apple"],
+    [/breakfast|desayuno|coffee|caf[eé]|\bdrink\b|bebida|\btea\b|\bt[eé]\b/, "coffee"],
     [/lunch|almuerzo|salad|ensalada|vegetable|verdura|veggie/, "salad"],
-    [/dinner|cena|meat|carne|steak|beef|pollo|chicken/, "steak"],
-    [/food|comida|eat|comer|meal|cocina|kitchen|restaurant|snack/, "food"],
-    [/part(y|ies)|fiesta|celebrat|birthday|cumplea|leisure|invitation|fest/, "party"],
-    [/animal|animales|pet|mascota|zoo/, "paw"],
-    [/people|activit|place|persona|gente|family|familia|preliminar|friend|amigo/, "people"],
-    [/class|school|escuela|homework|tarea|aula|study|lecci[oó]n|phrase|frase/, "school"],
-    [/day|d[ií]a|week|semana|month|mes|date|fecha|time|hora|calendar|season/, "calendar"],
-    [/feel|emotion|estar|tener|mood|sentim|condition|happy|sad/, "feelings"],
-    [/question|interrogat|pregunta|\bask\b|why|qu[eé]|how|c[oó]mo/, "question"]
+    [/dinner|cena|\bmeat\b|carne|steak|beef|pollo|chicken/, "steak"],
+    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|cocina|kitchen|restaurant|snack/, "food"],
+    [/part(y|ies)|fiesta|celebrat|birthday|cumplea|leisure|invitation|\bfest/, "party"],
+    [/animal|animales|\bpet\b|mascota|\bzoo\b/, "paw"],
+    [/people|activit|\bplace|persona|gente|family|familia|preliminar|friend|amigo/, "people"],
+    [/class|school|escuela|homework|tarea|aula|lecci[oó]n|phrase|frase/, "school"],
+    [/\bday\b|d[ií]as?\b|week|semana|\bmonth\b|\bmes\b|\bdate\b|fecha|\btime\b|\bhora\b|calendar|season/, "calendar"],
+    [/feel|emotion|\bestar\b|\btener\b|mood|sentim|condition|happy|\bsad\b/, "feelings"],
+    [/question|interrogat|pregunta|\bask\b|\bpor qu[eé]\b|\bhow\b/, "question"]
   ];
 
   const PALETTE = ["#FFC24B", "#FF8A6B", "#2DC2A0", "#9A8CFF", "#F48FB6", "#5BB8E8", "#86C443", "#F0A54A", "#7FD0C0", "#FF9FB0"];

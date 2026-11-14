@@ -774,6 +774,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ready = cards.filter((c) => isReady(c.id, D)).length;
     const started = cards.filter((c) => (D.byCard.get(c.id) || []).length > 0).length;
     const pct = lessonProgress(l, D), tricky = cards.filter((c) => isTricky(c.id, D)).length;
+    const art = CardArt ? CardArt.card(l) : null;   // same color/icon/pattern as this lesson's card
     const secMap = new Map();
     for (const c of cards) { const k = c.category || "—"; if (!secMap.has(k)) secMap.set(k, []); secMap.get(k).push(c); }
     const strictLabel = { exact: "Exact", forgiving: "Forgiving" };
@@ -794,11 +795,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">${esc(l.name)}</span>
         <button class="study-head__exit" data-act="lesson-menu" data-id="${l.id}" aria-label="Lesson options" style="margin-left:auto">${icon("more")}</button>
       </div>
-      <div class="hero">
+      ${art ? `<div class="hero hero--art" style="--c:${art.color}">
+        ${art.patHTML}<span class="hero__wm">${CardArt.iconSvg(art.icon)}</span>
+        <div class="hero__inner">
+          <div class="t-hero hero__num" style="font-size:clamp(44px,15vw,64px)">${pct}%</div>
+          <div class="t-label" style="opacity:.9">Learned · ${cards.length} words</div>
+          <div class="progress"><i style="width:${pct}%"></i></div>
+        </div>
+      </div>` : `<div class="hero">
         <div class="t-hero" style="font-size:clamp(44px,15vw,64px)">${pct}%</div>
         <div class="t-label" style="opacity:.85">Learned · ${cards.length} words</div>
         <div class="progress"><i style="width:${pct}%"></i></div>
-      </div>
+      </div>`}
       <div class="row" style="cursor:default;justify-content:space-around;text-align:center;margin-top:var(--s-4)">
         <span><div class="t-title">${ready}</div><div class="t-label" style="opacity:.7">Ready</div></span>
         <span><div class="t-title">${Math.max(0, started - ready)}</div><div class="t-label" style="opacity:.7">practicing</div></span>
