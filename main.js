@@ -110,10 +110,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function prefetchSpeakAudio() {
     if (!aiReady()) return;
+    // Warm only the first few speaker words on a screen (the study result, sheets, etc.).
+    // A long word list (e.g. lesson detail, ~50 rows) would otherwise synth audio for
+    // words she may never tap; those fall back to a fetch-on-tap (browser voice that tap).
     const seen = new Set();
-    app.querySelectorAll('[data-act="speak"][data-say]').forEach((el) => {
-      const s = el.dataset.say; if (s && !seen.has(s)) { seen.add(s); ensureTtsAudio(s); }
-    });
+    const els = app.querySelectorAll('[data-act="speak"][data-say]');
+    for (let i = 0; i < els.length && seen.size < 8; i++) {
+      const s = els[i].dataset.say; if (s && !seen.has(s)) { seen.add(s); ensureTtsAudio(s); }
+    }
   }
   function speak(text, locale) {
     if (!text) return;
