@@ -107,8 +107,8 @@
   -webkit-mask-repeat: repeat; mask-repeat: repeat;
   -webkit-mask-size: 760px auto; mask-size: 760px auto;
   -webkit-mask-position: center top; mask-position: center top; }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .screen__pat { opacity: .07; } }
-:root[data-theme="light"] .screen__pat { opacity: .07; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .screen__pat { opacity: .14; } }
+:root[data-theme="light"] .screen__pat { opacity: .14; }
 :root[data-theme="dark"] .screen__pat { opacity: .09; }
 
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
