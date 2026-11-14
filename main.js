@@ -755,7 +755,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!CardArt) return { style: "", patHTML: "" };
     const ps = CardArt.patternSvg(CardArt.patternIndex({ id: key }));
     const c = color || CardArt.accent({ id: key });
-    return { style: ` style="--c:${c}"`, patHTML: `<span class="screen__pat">${ps.svg}</span>` };
+    // The pattern is authored for a 320x92 card; cover-scaling it to a whole
+    // screen zooms it ~9x. Instead we TILE it as a CSS mask over a solid accent
+    // fill (CSS vars keep it themeable): one motif stays bigger than on a card
+    // but nowhere near as large. A data-URI mask needs an explicit xmlns.
+    const svg = ps.svg.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ');
+    // Single-quote the url() — this sits inside a double-quoted style="" attribute,
+    // so a double-quoted url() would terminate the attribute and drop the mask.
+    const enc = encodeURIComponent(svg).replace(/'/g, "%27");
+    const uri = `url('data:image/svg+xml,${enc}')`;
+    return {
+      style: ` style="--c:${c}"`,
+      patHTML: `<span class="screen__pat"><span class="screen__pat-ink" style="-webkit-mask-image:${uri};mask-image:${uri}"></span></span>`,
+    };
   }
   function lessonRow(l, due) {
     if (!CardArt) return `<button class="row" data-act="open-lesson" data-id="${l.id}">
