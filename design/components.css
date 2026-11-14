@@ -24,7 +24,7 @@
 .is-correct  .btn--primary { color: var(--btn-text-ok); }
 .is-notquite .btn--primary { color: var(--btn-text-no); }
 /* On a white sheet the secondary is a light-blue pill. */
-.sheet .btn--secondary { background: var(--sheet-field); color: var(--btn-text); }
+.sheet .btn--secondary { background: var(--sheet-field); color: var(--sheet-ink); }
 .btn + .btn { margin-top: var(--s-3); }
 
 /* ---- Link row (small text actions, e.g. "That should've counted · Explain")- */

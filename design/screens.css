@@ -144,7 +144,7 @@
 .chip-add { display: inline-flex; align-items: center; gap: 4px; }
 .chip-add__in { height: 30px; width: 90px; border: 1px solid var(--sheet-line); border-radius: var(--r-pill);
   padding: 0 var(--s-4); background: #fff; color: var(--sheet-ink); font: inherit; font-size: 13px; }
-.chip-add button { height: 30px; border: 0; background: var(--sheet-field); color: var(--btn-text);
+.chip-add button { height: 30px; border: 0; background: var(--sheet-field); color: var(--sheet-ink);
   border-radius: var(--r-pill); padding: 0 var(--s-5); font-weight: 700; cursor: pointer; font-size: 13px; }
 .segmented.seg3 { display: flex; width: 100%; }
 .segmented.seg3 button { flex: 1; font-size: 13px; padding: 10px 6px; }
@@ -158,9 +158,9 @@
 .install-steps { display: flex; flex-direction: column; gap: var(--s-4); margin: var(--s-5) 0 var(--s-2); }
 .install-step { display: flex; align-items: center; gap: var(--s-5); color: var(--sheet-ink);
   font-size: var(--t-body-l); font-weight: 600; }
-.install-step .icon { color: var(--btn-text); }
+.install-step .icon { color: var(--sheet-ink); }
 .install-num { width: 28px; height: 28px; flex: none; border-radius: 50%;
-  background: var(--sheet-field); color: var(--btn-text); display: grid; place-items: center;
+  background: var(--sheet-field); color: var(--sheet-ink); display: grid; place-items: center;
   font-weight: 800; font-size: 14px; }
 
 /* ---- Emulation "Viewing as" bar (Phase 5d, board 16 E4) ------------------ */
