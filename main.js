@@ -222,12 +222,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     const SDK = await loadSpeechSdk();
     const speechConfig = SDK.SpeechConfig.fromAuthorizationToken(tok.token, tok.region);
     speechConfig.speechRecognitionLanguage = "es-ES";
+    // iOS Safari opens the mic slowly; give it more time before "no speech" so the
+    // first frames aren't dropped (a big cause of the flaky 1-in-10 behavior).
+    try {
+      speechConfig.setProperty(SDK.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "8000");
+      speechConfig.setProperty(SDK.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "1200");
+    } catch {}
     const audioConfig = SDK.AudioConfig.fromDefaultMicrophoneInput();
     const paConfig = new SDK.PronunciationAssessmentConfig(word, SDK.PronunciationAssessmentGradingSystem.HundredMark, SDK.PronunciationAssessmentGranularity.Phoneme, false);
     const recognizer = new SDK.SpeechRecognizer(speechConfig, audioConfig);
     paConfig.applyTo(recognizer);
     const result = await new Promise((resolve, reject) => recognizer.recognizeOnceAsync((r) => resolve(r), (e) => reject(e)));
     try { recognizer.close(); } catch {}
+    if (result.reason !== SDK.ResultReason.RecognizedSpeech) throw new Error("no_speech");  // NoMatch/Canceled → clean retry
     const pa = SDK.PronunciationAssessmentResult.fromResult(result);
     let worst = null, worstScore = 101;
     try {
@@ -252,6 +259,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
     if (!pronConsent()) return renderPronConsent(word);
+    try { loadSpeechSdk().catch(() => {}); } catch {}   // warm the ~1MB SDK while she reads, so Record is fast
     sheet(`<div class="sheet__title">Say “${esc(word)}”</div>
       <div id="pron-body" class="sheet__text" style="min-height:72px;text-align:center">Tap <b>Record</b> and say it out loud.</div>
       <button class="btn btn--primary" data-act="pron-record" data-say="${esc(word)}">${icon("mic", "icon--sm")} Record</button>
