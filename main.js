@@ -502,7 +502,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ---- direction, mode + bidirectional grading (Phase 3) -------------------
   const DIRS = ["es-en", "en-es"];
-  const speakSupported = !!(self.SpeechRecognition || self.webkitSpeechRecognition);
+  // Speak mode is available when the backend is on (Azure STT, reliable on iOS) OR the
+  //  browser has its own SpeechRecognition (local/offline / desktop).
+  const speakSupported = aiReady() || !!(self.SpeechRecognition || self.webkitSpeechRecognition);
   function pref(key, allowed, dflt) { try { const v = localStorage.getItem(key); return allowed.includes(v) ? v : dflt; } catch { return dflt; } }
   function pickDir() { const s = pref("aliyah.direction", DIRS, "mixed"); return s === "mixed" ? DIRS[Math.random() < .5 ? 0 : 1] : s; }
   function pickMode() {
@@ -902,6 +904,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="idk-link" data-act="idk">I don't know</button></div>`;
     } else if (S.mode === "speak") {
       controls = speakControls();
+      if (aiReady()) { try { loadSpeechSdk().catch(() => {}); } catch {} primeMic(); }   // warm Azure STT + mic before she taps
     } else {
       const ph = S.dir === "es-en" ? "type the English translation" : "type the Spanish translation";
       controls = `<form id="answer-form" class="study__controls">
@@ -953,7 +956,42 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="btn btn--secondary btn--idk" data-act="idk">I don't know</button>
         <button class="btn btn--secondary" data-act="type-instead">Type instead</button></div></div>`;
   }
-  function speakStart() {
+  // Normalize the answer language to an Azure locale (en→en-US, else es-ES).
+  function azureLang(dir) {
+    const l = String(answers.answerLocale(dir) || "es-ES").toLowerCase();
+    return l.indexOf("en") === 0 ? "en-US" : "es-ES";
+  }
+  // Azure STT for the Speak answer mode — reliable on iOS, where the browser's
+  //  SpeechRecognition doesn't capture. Returns what she said (no scoring here).
+  async function recognizeSpeech(lang) {
+    const ad = aiAdapter(); if (!ad) throw new Error("backend not configured");
+    const tok = await ad.speechToken(); if (!tok || !tok.token) throw new Error("no speech token");
+    const SDK = await loadSpeechSdk();
+    const speechConfig = SDK.SpeechConfig.fromAuthorizationToken(tok.token, tok.region);
+    speechConfig.speechRecognitionLanguage = lang || "es-ES";
+    try {
+      speechConfig.setProperty(SDK.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "8000");
+      speechConfig.setProperty(SDK.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "1200");
+    } catch {}
+    const recognizer = new SDK.SpeechRecognizer(speechConfig, SDK.AudioConfig.fromDefaultMicrophoneInput());
+    const result = await new Promise((resolve, reject) => recognizer.recognizeOnceAsync((r) => resolve(r), (e) => reject(e)));
+    try { recognizer.close(); } catch {}
+    if (result.reason !== SDK.ResultReason.RecognizedSpeech) throw new Error("no_speech");
+    return result.text || "";
+  }
+  async function speakStart() {
+    // Prefer Azure STT when the backend is on (works on iOS). The browser
+    //  SpeechRecognition below is the local/offline fallback only.
+    if (aiReady()) {
+      primeMic();
+      S.speak = { ...S.speak, phase: "listening", rec: null, note: "" }; renderCard();
+      let text = "";
+      try { text = (await recognizeSpeech(azureLang(S.dir))).replace(/[.,!?¡¿]+$/g, "").trim(); }
+      catch { return noCapture(); }
+      if (!text) return noCapture();
+      S.speak = { ...S.speak, phase: "heard", heard: text, alts: [text] }; renderCard();
+      return;
+    }
     const SR = self.SpeechRecognition || self.webkitSpeechRecognition;
     if (!SR) { S.speak.phase = "blocked"; return renderCard(); }
     let rec; try { rec = new SR(); } catch { S.speak.phase = "blocked"; return renderCard(); }
