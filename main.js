@@ -80,21 +80,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       const synth = window.speechSynthesis;
       if (!synth || !text) return;
       warmTTS();
-      const utter = () => {
-        const u = new SpeechSynthesisUtterance(String(text));
-        u.lang = locale || "es-ES";
-        u.rate = 0.95;
-        const v = (synth.getVoices() || []).find((vo) => /^es/i.test(vo.lang || ""));
-        if (v) u.voice = v;
-        synth.cancel();
-        synth.speak(u);
-      };
-      if ((synth.getVoices() || []).length) { utter(); return; }
-      // Voices not ready yet (common on iOS's first use): speak once they load.
-      let done = false;
-      const once = () => { if (done) return; done = true; utter(); };
-      synth.addEventListener("voiceschanged", once, { once: true });
-      setTimeout(once, 300);
+      // Speak SYNCHRONOUSLY inside the tap — iOS silently blocks speech started from a
+      // timer/callback, so we never defer. No cancel() first either (on iOS a speak()
+      // right after cancel() is often dropped); a short word queuing is harmless.
+      const u = new SpeechSynthesisUtterance(String(text));
+      u.lang = locale || "es-ES";
+      u.rate = 0.95;
+      const v = (synth.getVoices() || []).find((vo) => /^es/i.test(vo.lang || ""));
+      if (v) u.voice = v;
+      synth.speak(u);
     } catch {}
   }
   // Explain-my-answer (R1): on-demand AI explanation in a bottom sheet.
