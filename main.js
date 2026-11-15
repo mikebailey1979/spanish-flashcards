@@ -776,10 +776,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         <button class="btn btn--primary" data-act="keep-practicing">Keep practicing</button>
       </div>`;
     }
-    const trickyRow = `<button class="row" data-act="practice-tricky" style="margin-top:var(--s-4)">
-      <span class="row__main"><span class="row__title">Practice tricky words</span>
-        <span class="row__meta">The ones that need another look</span></span>
-      ${tricky ? `<span class="pill">${tricky}</span>` : ""}</button>`;
+    // Tricky words gets the same first-class card identity as on its own screen:
+    // flame accent + the Asanoha (hemp-leaf) motif (index 10).
+    const tpat = CardArt ? CardArt.patternSvg(10) : null;
+    const trickyRow = tpat
+      ? `<button class="lcard" data-act="practice-tricky" style="--c:var(--accent);margin-top:var(--s-4)">
+          <span class="lcard__pat" style="opacity:${tpat.opacity}">${tpat.svg}</span>
+          <span class="lcard__wm">${CardArt.iconSvg("school")}</span>
+          <span class="lcard__main"><span class="lcard__title">Practice tricky words</span>
+            <span class="lcard__meta">The ones that need another look</span></span>
+          ${tricky ? `<span class="lcard__pill">${tricky}</span>` : ""}</button>`
+      : `<button class="row" data-act="practice-tricky" style="margin-top:var(--s-4)">
+          <span class="row__main"><span class="row__title">Practice tricky words</span>
+            <span class="row__meta">The ones that need another look</span></span>
+          ${tricky ? `<span class="pill">${tricky}</span>` : ""}</button>`;
     // Home shows only lessons with words due now (minus the one already in the hero);
     // the full lesson catalog lives on the Lessons tab, so we don't duplicate it here.
     const moreDue = lessons.filter((l) => byLesson[l.id] && l.id !== heroLessonId);
@@ -870,7 +880,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${art.patHTML}${art.wmHTML}
       <span class="lcard__main"><span class="lcard__title">${esc(l.name)}</span>
         <span class="lcard__meta">${l.cardIds.length} words</span></span>
-      ${due ? `<span class="lcard__pill">${due}</span>` : ""}
+      ${due
+        ? `<span class="lcard__pill" title="${due} to study">${due}</span>`
+        : `<span class="lcard__pill lcard__pill--count" title="${l.cardIds.length} words">${l.cardIds.length}</span>`}
     </button>`;
   }
 
@@ -941,6 +953,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         <span><div class="t-title">${ready}</div><div class="t-label" style="opacity:.7">Ready</div></span>
         <span><div class="t-title">${Math.max(0, started - ready)}</div><div class="t-label" style="opacity:.7">practicing</div></span>
         <span><div class="t-title">${cards.length - started}</div><div class="t-label" style="opacity:.7">not started</div></span>
+      </div>
+      <div class="lesson-actions">
+        <button class="chip" data-act="study-lesson" data-id="${l.id}">Study</button>
+        <button class="chip" data-act="study-lesson-endless" data-id="${l.id}"><span class="inf-glyph">∞</span> On repeat</button>
+        ${roleplayOn() ? `<button class="chip" data-act="rp-open" data-id="${l.id}">${icon("chat", "icon--sm")} Pretend chat</button>` : ""}
       </div>
       <div class="words-head"><span class="t-caps" style="opacity:.75">Words</span>
         <button class="chip" data-act="word-add" data-id="${l.id}">${icon("add", "icon--sm")} Add a word</button></div>

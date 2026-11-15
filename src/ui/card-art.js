@@ -158,7 +158,10 @@
 
   /** Everything a card needs: {color, icon, patHTML, wmHTML}. */
   function card(lesson) {
-    const color = accent(lesson), ic = iconKey(lesson && lesson.name), ps = patternSvg(patternIndex(lesson));
+    // Tiling patterns only — a focal/radial motif leaves the left of the card bare
+    // (the "Unidad 5 pattern stops before the left edge" report). Cards + heroes
+    // now always get an edge-to-edge pattern.
+    const color = accent(lesson), ic = iconKey(lesson && lesson.name), ps = patternSvg(tilingPatternIndex(lesson));
     return {
       color: color, icon: ic,
       patHTML: '<span class="lcard__pat" style="opacity:' + ps.opacity + '">' + ps.svg + "</span>",
