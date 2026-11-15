@@ -22,7 +22,8 @@
 .pulse.b{animation-delay:calc(var(--m-pulse-ok) / 2)}
 .is-notquite .pulse{background:radial-gradient(closest-side,var(--glow-no),transparent);animation:pulse-no var(--m-pulse-no) ease-out 1 both}
 @keyframes pulse-ok{0%{transform:scale(.5);opacity:.9}100%{transform:scale(9);opacity:0}}
-@keyframes pulse-no{0%{transform:scale(.5);opacity:.9}100%{transform:scale(9);opacity:0}}
+/* single incorrect pulse: fade IN then out so the one ripple is clearly visible */
+@keyframes pulse-no{0%{transform:scale(.55);opacity:0}18%{opacity:.92}100%{transform:scale(8);opacity:0}}
 /* Correct-answer starburst, centered on the mark, brightest behind the checkmark and
    fading gently outward (never to 0). Clipped to the screen by .screen overflow. */
 .mark-burst{position:absolute;left:50%;top:50%;width:1500px;height:1500px;margin:-750px 0 0 -750px;

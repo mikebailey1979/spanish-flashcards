@@ -48,7 +48,7 @@
 
   /* motion (see motion.css) */
   --m-fade:250ms; --m-bar:500ms; --m-pop:600ms; --m-wobble:600ms; --m-confetti:1500ms;
-  --m-pulse-ok:2600ms; --m-pulse-no:1700ms; --m-drift:44s; --m-sheet:300ms;
+  --m-pulse-ok:2600ms; --m-pulse-no:2300ms; --m-drift:44s; --m-sheet:300ms;
   --ease-confetti:cubic-bezier(.2,.7,.3,1);
 }
 /* dark: deeper grounds; Not quite becomes crimson so text stays white (no color flip) */
@@ -58,7 +58,7 @@
   --sheet-bg:#2A3F60; --sheet-ink:#EAF1FA; --sheet-muted:#A7B7CE; --sheet-field:#1A2B45; --sheet-line:#3C547A;
   --surface-1:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.14);
   --drift-a:rgba(50,100,170,.2); --drift-b:rgba(4,16,36,.5);
-  --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,130,140,.24);
+  --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,120,135,.45);
   --accent:#FFA657; --accent-2:#FFD27A; --accent-soft:rgba(255,166,87,.18);
 }}
 :root[data-theme="dark"]{
@@ -67,6 +67,6 @@
   --sheet-bg:#2A3F60; --sheet-ink:#EAF1FA; --sheet-muted:#A7B7CE; --sheet-field:#1A2B45; --sheet-line:#3C547A;
   --surface-1:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.14);
   --drift-a:rgba(50,100,170,.2); --drift-b:rgba(4,16,36,.5);
-  --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,130,140,.24);
+  --glow-ok:rgba(120,230,170,.22); --glow-no:rgba(255,120,135,.45);
   --accent:#FFA657; --accent-2:#FFD27A; --accent-soft:rgba(255,166,87,.18);
 }

@@ -584,21 +584,51 @@ document.addEventListener("DOMContentLoaded", async () => {
   function cardLearn(id, D) { if (isReady(id, D)) return 1; const es = D.byCard.get(id); return es && es.length ? 0.5 : 0; }
   function lessonProgress(l, D) { return l.cardIds.length ? Math.round(l.cardIds.reduce((a, id) => a + cardLearn(id, D), 0) / l.cardIds.length * 100) : 0; }
   function trickyCards(D) { return D.cards.filter((c) => isTricky(c.id, D)); }
-  const dayKey = (ts) => { const d = new Date(ts); return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate(); };
+  // Streak + "this week" are anchored to US Pacific time so the weekly row always
+  // resets Sunday 12:00am PT, identically on every device; a day = the PT calendar
+  // day, and the week runs Sun→Sat. The day-streak number is unbounded and never
+  // resets with the week.
+  const TZ = "America/Los_Angeles";
+  const _ymd = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+  const _wdf = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" });
+  const _WD = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const DAY_MS = 86400000;
+  const dayKey = (ts) => _ymd.format(new Date(ts));              // "2026-11-15" in PT
+  const ptWeekday = (ts) => _WD[_wdf.format(new Date(ts))];      // 0 = Sun … 6 = Sat (PT)
+  function weekDayKeys() {                                       // this week's 7 PT days, Sun→Sat
+    const now = Date.now(), wd = ptWeekday(now), out = [];
+    for (let i = 0; i < 7; i++) out.push(dayKey(now + (i - wd) * DAY_MS));
+    return out;
+  }
   function streak(D) {
     const days = new Set(D.evs.map((e) => dayKey(Date.parse(e.at))));
-    let n = 0; const d = new Date();
-    if (!days.has(dayKey(d.getTime()))) d.setDate(d.getDate() - 1);   // grace if today not studied yet
-    while (days.has(dayKey(d.getTime()))) { n++; d.setDate(d.getDate() - 1); }
+    let n = 0, t = Date.now();
+    if (!days.has(dayKey(t))) t -= DAY_MS;                        // grace if today not studied yet
+    while (days.has(dayKey(t))) { n++; t -= DAY_MS; }
     return n;
   }
-  function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
   function weekStats(D) {
-    const wk = D.evs.filter((e) => Date.parse(e.at) >= weekStart().getTime());
-    const cards = new Set(wk.map((e) => e.cardId));
-    let good = 0; for (const id of cards) { const f = wk.find((e) => e.cardId === id); if (f && f.grade !== "again") good++; }
-    let sessions = 0, last = 0; for (const e of wk) { const t = Date.parse(e.at); if (t - last > 20 * 60000) sessions++; last = t; }
+    const wk = new Set(weekDayKeys());
+    const evs = D.evs.filter((e) => wk.has(dayKey(Date.parse(e.at))));
+    const cards = new Set(evs.map((e) => e.cardId));
+    let good = 0; for (const id of cards) { const f = evs.find((e) => e.cardId === id); if (f && f.grade !== "again") good++; }
+    let sessions = 0, last = 0; for (const e of evs) { const t = Date.parse(e.at); if (t - last > 20 * 60000) sessions++; last = t; }
     return { words: cards.size, pct: cards.size ? Math.round(good / cards.size * 100) : 0, sessions };
+  }
+  // A larger, detailed, multi-colour flame for the Progress streak title.
+  function streakFlame(size) {
+    size = size || 44;
+    const id = "flm" + (streakFlame._n = (streakFlame._n || 0) + 1);
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" style="flex:none;filter:drop-shadow(0 1px 2px rgba(255,80,40,.45))">
+      <defs>
+        <linearGradient id="${id}o" x1="12" y1="1.5" x2="12" y2="23" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFC24B"/><stop offset=".55" stop-color="#FF8A2E"/><stop offset="1" stop-color="#FF4425"/></linearGradient>
+        <linearGradient id="${id}i" x1="12" y1="8.5" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFF3AD"/><stop offset="1" stop-color="#FFB13A"/></linearGradient>
+      </defs>
+      <path fill="url(#${id}o)" d="M13.6 1.5c.7 3.1-1 5.2-2.4 7-1.3 1.7-1.7 3.3-.9 4.7-1.3-.3-2.1-1.4-2.3-2.9C6.4 11.8 5 14 5 16.2 5 20 8.1 23 12 23s7-3 7-6.8c0-2.6-1.4-5-3.1-7.1-.3 1.4-1 2.1-2 2.3.9-3-.2-6.5-2.3-8.9z"/>
+      <path fill="url(#${id}i)" d="M12 22c2.3 0 4.2-1.8 4.2-4.1 0-1.5-.9-3.1-2.4-4.4-.2 1.1-.8 1.7-1.6 1.8.5-2-.5-3.9-1.9-5-.3 1.4-1.3 2.2-2 3.3-.5.8-.6 1.6-.6 2.3 0 2.3 1.9 4.1 4.3 4.1z"/>
+    </svg>`;
   }
 
   // ---- selection: pull-regardless-of-due so study is never empty -----------
@@ -993,14 +1023,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     const st = streak(D), wk = weekStats(D), tricky = trickyCards(D).length;
     const days = new Set(D.evs.map((e) => dayKey(Date.parse(e.at))));
-    const mon = weekStart();
-    const dots = ["M", "T", "W", "T", "F", "S", "S"].map((lbl, i) => {
-      const d = new Date(mon); d.setDate(mon.getDate() + i);
-      const on = days.has(dayKey(d.getTime()));
+    const weekKeys = weekDayKeys();   // Sun→Sat, anchored to PT
+    const dots = ["S", "M", "T", "W", "T", "F", "S"].map((lbl, i) => {
+      const on = days.has(weekKeys[i]);
       return `<span style="display:flex;flex-direction:column;align-items:center;gap:6px">
         <span style="width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:${on ? "#fff" : "transparent"};box-shadow:${on ? "none" : "inset 0 0 0 2px var(--track)"}">${on ? `<i class="icon icon--sm icon--check" style="background:var(--correct);width:16px;height:16px"></i>` : ""}</span>
         <span class="t-label" style="opacity:.7">${lbl}</span></span>`;
     }).join("");
+    const weeks = Math.floor(st / 7);
     const tiles = [[wk.words, "words practiced this week"], [wk.pct + "%", "right on the first try"], [wk.sessions, "study sessions"]]
       .map(([n, t]) => `<div class="hero" style="flex:1;padding:var(--s-6) var(--s-5);gap:4px"><div class="t-title">${n}</div><div class="t-label" style="opacity:.75">${t}</div></div>`).join("");
     const readyRows = lessons.map((l) => { const p = lessonProgress(l, D); return `<button class="row" data-act="lesson-readiness" data-id="${l.id}"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span>${icon("chevron", "icon--sm")}</button>`; }).join("");
@@ -1008,7 +1038,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${sp.patHTML}
       <h1 class="t-h1" style="margin-bottom:var(--s-6)">Progress</h1>
       <div class="hero">
-        <div style="display:flex;align-items:center;gap:8px">${icon("flame", "icon--lg")}<span class="t-hero" style="font-size:44px">${st}</span><span class="t-title">day streak</span></div>
+        <div style="display:flex;align-items:center;gap:10px">${streakFlame(44)}<span class="t-hero" style="font-size:44px">${st}</span><span class="t-title">day streak</span>${weeks >= 1 ? `<span class="streak-weeks">${weeks} week${weeks > 1 ? "s" : ""}!</span>` : ""}</div>
         <div style="display:flex;justify-content:space-between;margin-top:var(--s-3)">${dots}</div>
         <div class="muted" style="margin-top:var(--s-3)">Continue practicing and learning to keep your streak!</div>
       </div>
