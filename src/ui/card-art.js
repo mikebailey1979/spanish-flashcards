@@ -135,7 +135,8 @@
     [/bread|\bpan\b|panader|bakery/, "bread"],
     [/cheese|queso/, "cheese"],
     [/\begg\b|huevo/, "egg"],
-    [/\bcake\b|pastel|torta|tarta|dessert|postre|dulce|sweet/, "birthday-cake"],
+    [/dessert|postre|\bsweets?\b|candy|dulce|chocolate|helado|ice ?cream/, ["cupcake", "cake-slice", "ice-cream-01", "donut", "candy", "chocolate", "lollipop"]],
+    [/\bcake\b|pastel|torta|tarta/, "birthday-cake"],
     [/coffee|caf[eé]/, "coffee"],
     [/\btea\b|\bt[eé]\b/, "tea"],
     [/\bmilk\b|leche/, "milk"],
@@ -144,7 +145,7 @@
     [/breakfast|desayuno/, "croissant"],
     [/\blunch\b|almuerzo/, "sandwich"],
     [/\bdinner\b|\bcena\b|supper/, "plate"],
-    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|restaurant|snack|grocery|supermerc/, "vegetarian-food"],
+    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|restaurant|snack|grocery|supermerc/, ["vegetarian-food", "noodles", "natural-food", "serving-food", "street-food", "dish", "organic-food"]],
     // animals & nature
     [/\bcat\b|\bgato\b|kitten|gatito/, "cat"],
     [/\bbird\b|p[aá]jaro|\bave\b/, "bird"],
@@ -152,12 +153,12 @@
     [/rabbit|conejo|bunny/, "rabbit"],
     [/\bbug\b|insect|insecto|spider|ara[nñ]a/, "bug"],
     [/\bfarm\b|granja|\bbarn\b/, "tractor"],
-    [/animal|animales|\bpet\b|mascota|\bzoo\b|\bdog\b|perro|\bcow\b|\bvaca\b|\bpig\b|cerdo/, "paw-print"],
+    [/animal|animales|\bpet\b|mascota|\bzoo\b|\bdog\b|perro|\bcow\b|\bvaca\b|\bpig\b|cerdo/, ["paw-print", "panda", "rabbit", "bird", "cat", "horse", "fish"]],
     [/flower|\bflor\b|florist/, "flower"],
     [/\btree\b|[aá]rbol|forest|bosque|jungle|selva/, "tree"],
     [/\bleaf\b|hoja|plant|planta|garden|jard[ií]n|nature|naturaleza/, "plant"],
     [/mountain|monta[nñ]a|hiking|senderismo/, "mountain"],
-    [/beach|playa|\bsea\b|\bmar\b|ocean|oc[eé]ano|\bisland\b|\bisla\b|vacation|vacacion|vacaciones|seaside|\bresort\b|\bcruise\b|tropical/, "beach"],
+    [/beach|playa|\bsea\b|\bmar\b|ocean|oc[eé]ano|\bisland\b|\bisla\b|vacation|vacacion|vacaciones|seaside|\bresort\b|\bcruise\b|tropical/, ["beach", "beach-02", "travel-bag", "luggage", "tree-palm", "island", "hot-air-balloon", "sunglasses"]],
     // weather / sky / time of day
     [/rainbow|arco iris/, "rainbow"],
     [/\brain\b|lluvia|rainy|lluvioso/, "rain"],
@@ -170,12 +171,13 @@
     // people, family, feelings
     [/family|familia|parent|padres|\bmom\b|\bmum\b|\bdad\b|madre|padre|hermano|hermana|sibling/, "user-group"],
     [/baby|beb[eé]|infant/, "baby"],
-    [/people|gente|persona|\bplace|activit|preliminar|friend|amigo|community|comunidad/, "people"],
+    [/people|gente|persona|activit|preliminar|friend|amigo|community|comunidad/, ["people", "user-multiple", "users", "user-group", "contact", "user-circle", "user-account", "user-love"]],
+    [/\bplaces?\b|\blugares?\b|\bsitios?\b/, ["location", "maps", "pin-location", "map-pinpoint-01", "city", "building"]],
     [/\blove\b|amor|coraz[oó]n|\bheart\b|romance/, "heart"],
     [/\bsad\b|triste|cry|llor/, "sad"],
     [/angry|enoj|enfad|mad\b/, "angry"],
     [/\bhappy\b|feliz|content|alegr|\bjoy\b|emotion|emoci/, "happy"],
-    [/feel|\bestar\b|\btener\b|\bmood\b|sentim|condition|\bface\b|\bcara\b|smile|sonri/, "smile"],
+    [/feel|\bestar\b|\btener\b|\bmood\b|sentim|condition|\bface\b|\bcara\b|smile|sonri/, ["smile", "smile-plus", "in-love", "neutral", "wink"]],
     [/greeting|saludo|\bhello\b|\bhola\b|goodbye|adi[oó]s|farewell/, "hand"],
     // home & places
     [/kitchen|cocina/, "kitchen"],
@@ -199,7 +201,7 @@
     [/homework|tarea|deberes|assignment/, "notebook-pen"],
     [/class|school|escuela|colegio|\baula\b/, "school"],
     [/adjectiv|adjetiv|describ|descriptiv/, "bubble-chat"],
-    [/grammar|gram[aá]tica|verb|verbo|conjugat|\bnoun\b|sustantivo|adverb|pronoun|pronombre|preposition|preposici|\btense\b|phrase|frase|vocabular|palabra|alphabet|alfabeto|abecedario/, "language-skill"],
+    [/grammar|gram[aá]tica|verb|verbo|conjugat|\bnoun\b|sustantivo|adverb|pronoun|pronombre|preposition|preposici|\btense\b|phrase|frase|vocabular|palabra|alphabet|alfabeto|abecedario/, ["language-skill", "language", "translate", "quill-write-01", "book-open-01", "quote"]],
     [/question|interrogat|pregunta|\bask\b|\bpor qu[eé]\b|\bhow\b|\bc[oó]mo\b|\bqu[eé]\b|\bqui[eé]n\b|\bwhere\b|\bd[oó]nde\b/, "quiz"],
     [/\bshapes?\b|\bformas?\b|geometr|c[ií]rculo|tri[aá]ngulo|cuadrado/, "geometric-shapes"],
     // transport & travel
@@ -231,7 +233,8 @@
     [/\bsport|deporte|exercise|ejercicio|\bgym\b|fitness|\bball\b|pelota|bal[oó]n/, "dumbbell"],
     [/guitar|guitarra/, "guitar"],
     [/piano|keyboard musical/, "piano"],
-    [/music|m[uú]sica|\bsong\b|canci[oó]n|\bsing\b|cantar|instrument/, "music-note"],
+    [/instrument|instrumento/, ["guitar", "piano", "drum", "music-note-03"]],
+    [/music|m[uú]sica|\bsong\b|canci[oó]n|\bsing\b|cantar/, "music-note"],
     [/\bcolou?rs?\b|colores/, "colors"],
     [/\bart\b|arte|\bdraw\b|dibuj/, "paint-brush-01"],
     [/paint|pint|craft|manualidad/, "paint-board"],
@@ -245,8 +248,9 @@
     [/part(y|ies)|fiesta|invitation|invitaci|\bfest\b/, "party"],
     [/leisure|tiempo libre|free time/, "kite"],
     // time, calendar, numbers, money
+    [/\bseasons?\b|estaci[oó]n|estaciones/, ["leaf", "snow", "sun", "tree-02"]],
     [/\bmonths?\b|\bmes(es)?\b/, "calendar-01"],
-    [/\bday\b|d[ií]as?\b|\bweeks?\b|semanas?|\bdate\b|fecha|calendar|calendario|season|estaci[oó]n/, "calendar"],
+    [/\bday\b|d[ií]as?\b|\bweeks?\b|semanas?|\bdate\b|fecha|calendar|calendario/, ["calendar", "calendar-02", "calendar-03", "calendar-04", "date-time", "appointment-01"]],
     [/\btime\b|\bhora\b|\bhour\b|clock|reloj|schedule|horario|minute|minuto/, "clock"],
     [/number|n[uú]mero|\bcount\b|contar|\bmath\b|matem|arithmetic/, "calculator"],
     [/money|dinero|\bprice\b|precio|\bcost\b|\bdollar\b|\bpeso\b|\beuro\b|\bbuy\b|comprar|\bpay\b|pagar/, "money"],
@@ -294,7 +298,14 @@
   // via: "keyword" | "name" | "fallback"; rule: the regex / token / "(hashed)".
   function iconKeyExplain(text) {
     const raw = " " + String(text || "").toLowerCase() + " ";
-    for (let i = 0; i < KW.length; i++) if (KW[i][0].test(raw)) return { icon: KW[i][1], via: "keyword", rule: String(KW[i][0]) };
+    for (let i = 0; i < KW.length; i++) if (KW[i][0].test(raw)) {
+      const v = KW[i][1], pool = Array.isArray(v);
+      // A pool differentiates same-topic lessons: pick one by hashing the name, so
+      // "Food", "Food is culture" and "Foods (review)" get different food icons but
+      // each stays stable for that lesson.
+      const icon = pool ? v[hash("" + (text || "") + "|v") % v.length] : v;
+      return { icon: icon, via: "keyword", rule: String(KW[i][0]) + (pool ? " [pool/" + v.length + "]" : "") };
+    }
     const set = bigNameSet();
     if (set) {
       const toks = norm(text).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
