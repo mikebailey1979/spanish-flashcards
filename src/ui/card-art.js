@@ -141,13 +141,17 @@
     [/\bmilk\b|leche/, "milk"],
     [/\bwater\b|agua/, "water"],
     [/\bdrink\b|bebida|\bjuice\b|jugo|zumo|smoothie/, "drink"],
-    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|cocina|kitchen|restaurant|snack|desayuno|almuerzo|\bcena\b|lunch|dinner|breakfast|grocery|supermerc/, "vegetarian-food"],
+    [/breakfast|desayuno/, "croissant"],
+    [/\blunch\b|almuerzo/, "sandwich"],
+    [/\bdinner\b|\bcena\b|supper/, "plate"],
+    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|restaurant|snack|grocery|supermerc/, "vegetarian-food"],
     // animals & nature
     [/\bcat\b|\bgato\b|kitten|gatito/, "cat"],
     [/\bbird\b|p[aá]jaro|\bave\b/, "bird"],
     [/horse|caballo|pony/, "horse"],
     [/rabbit|conejo|bunny/, "rabbit"],
     [/\bbug\b|insect|insecto|spider|ara[nñ]a/, "bug"],
+    [/\bfarm\b|granja|\bbarn\b/, "tractor"],
     [/animal|animales|\bpet\b|mascota|\bzoo\b|\bdog\b|perro|\bcow\b|\bvaca\b|\bpig\b|cerdo/, "paw-print"],
     [/flower|\bflor\b|florist/, "flower"],
     [/\btree\b|[aá]rbol|forest|bosque|jungle|selva/, "tree"],
@@ -170,8 +174,8 @@
     [/\blove\b|amor|coraz[oó]n|\bheart\b|romance/, "heart"],
     [/\bsad\b|triste|cry|llor/, "sad"],
     [/angry|enoj|enfad|mad\b/, "angry"],
-    [/\bhappy\b|feliz|content|alegr|\bjoy\b/, "happy"],
-    [/feel|emotion|emoci|\bestar\b|\btener\b|\bmood\b|sentim|condition|\bface\b|\bcara\b|smile|sonri/, "smile"],
+    [/\bhappy\b|feliz|content|alegr|\bjoy\b|emotion|emoci/, "happy"],
+    [/feel|\bestar\b|\btener\b|\bmood\b|sentim|condition|\bface\b|\bcara\b|smile|sonri/, "smile"],
     [/greeting|saludo|\bhello\b|\bhola\b|goodbye|adi[oó]s|farewell/, "hand"],
     // home & places
     [/kitchen|cocina/, "kitchen"],
@@ -188,13 +192,16 @@
     [/furniture|mueble/, "sofa"],
     [/\bbarrio\b|vecindario|neighbou?rhood/, "building"],
     [/\bhealth\b|\bsalud\b|\bsick\b|enfermo|m[eé]dico|hospital|medicine|medicina|\bdoctor\b/, "stethoscope"],
-    [/routine|rutina|daily life|vida diaria/, "clock"],
+    [/routine|rutina|daily life|vida diaria/, "alarm-clock"],
     // school & learning
     [/teacher|maestr|profesor/, "teacher"],
     [/student|estudiante|alumn|pupil/, "student"],
-    [/class|school|escuela|colegio|homework|tarea|\baula\b/, "school"],
-    [/grammar|gram[aá]tica|verb|verbo|conjugat|\bnoun\b|sustantivo|adjetiv|adjective|adverb|pronoun|pronombre|preposition|preposici|\btense\b|phrase|frase|vocabular|palabra|alphabet|alfabeto|abecedario/, "language-skill"],
+    [/homework|tarea|deberes|assignment/, "notebook-pen"],
+    [/class|school|escuela|colegio|\baula\b/, "school"],
+    [/adjectiv|adjetiv|describ|descriptiv/, "bubble-chat"],
+    [/grammar|gram[aá]tica|verb|verbo|conjugat|\bnoun\b|sustantivo|adverb|pronoun|pronombre|preposition|preposici|\btense\b|phrase|frase|vocabular|palabra|alphabet|alfabeto|abecedario/, "language-skill"],
     [/question|interrogat|pregunta|\bask\b|\bpor qu[eé]\b|\bhow\b|\bc[oó]mo\b|\bqu[eé]\b|\bqui[eé]n\b|\bwhere\b|\bd[oó]nde\b/, "quiz"],
+    [/\bshapes?\b|\bformas?\b|geometr|c[ií]rculo|tri[aá]ngulo|cuadrado/, "geometric-shapes"],
     // transport & travel
     [/\bcar\b|coche|carro|\bauto\b|veh[ií]cle|veh[ií]culo/, "car"],
     [/\bbus\b|autob[uú]s|\bcoach\b/, "bus"],
@@ -225,20 +232,29 @@
     [/guitar|guitarra/, "guitar"],
     [/piano|keyboard musical/, "piano"],
     [/music|m[uú]sica|\bsong\b|canci[oó]n|\bsing\b|cantar|instrument/, "music-note"],
-    [/paint|pint|\bart\b|\bdraw\b|dibuj|\bcolou?r\b|colores|craft/, "paint-board"],
-    [/\bgame\b|juego|jugar|\bplay\b|\btoy\b|juguete|puzzle/, "game-controller"],
-    // time, numbers, money, symbols
-    [/\bday\b|d[ií]as?\b|\bweeks?\b|semanas?|\bmonths?\b|\bmes(es)?\b|\bdate\b|fecha|calendar|calendario|season|estaci[oó]n/, "calendar"],
+    [/\bcolou?rs?\b|colores/, "colors"],
+    [/\bart\b|arte|\bdraw\b|dibuj/, "paint-brush-01"],
+    [/paint|pint|craft|manualidad/, "paint-board"],
+    [/\bgames?\b|juego|jugar|\bplay\b|\btoy\b|juguete/, "game-controller"],
+    [/hobby|hobbies|pasatiempo|puzzle/, "puzzle"],
+    // festive & leisure — specific, BEFORE the generic calendar/clock rules so
+    // "holidays" / "free time" aren't swallowed by días / time.
+    [/birthday|cumplea[nñ]/, "birthday-cake"],
+    [/\bholiday\b|holidays|festiv|d[ií]a festivo/, "gift"],
+    [/celebrat|celebraci/, "confetti"],
+    [/part(y|ies)|fiesta|invitation|invitaci|\bfest\b/, "party"],
+    [/leisure|tiempo libre|free time/, "kite"],
+    // time, calendar, numbers, money
+    [/\bmonths?\b|\bmes(es)?\b/, "calendar-01"],
+    [/\bday\b|d[ií]as?\b|\bweeks?\b|semanas?|\bdate\b|fecha|calendar|calendario|season|estaci[oó]n/, "calendar"],
     [/\btime\b|\bhora\b|\bhour\b|clock|reloj|schedule|horario|minute|minuto/, "clock"],
     [/number|n[uú]mero|\bcount\b|contar|\bmath\b|matem|arithmetic/, "calculator"],
     [/money|dinero|\bprice\b|precio|\bcost\b|\bdollar\b|\bpeso\b|\beuro\b|\bbuy\b|comprar|\bpay\b|pagar/, "money"],
     [/gift|regalo|present\b/, "gift"],
-    [/part(y|ies)|fiesta|celebrat|birthday|cumplea|invitation|invitaci|holiday|holidays|\bfest/, "party"],
-    [/leisure|hobby|hobbies|pasatiempo|tiempo libre|free time/, "game-controller"],
-    [/country|pa[ií]s|nation|language|idioma|spanish|espa[nñ]ol|english|ingl[eé]s|flag|bandera/, "flag"],
-    // Lowest priority: a lesson named only structurally (no topic word) → a neutral
-    // study icon, so real topic words above always win (e.g. "Unit 1 — Travel" → plane).
-    [/\bunit\b|\bunidad\b|\blesson\b|lecci[oó]n|\bchapter\b|cap[ií]tulo|\bsection\b|secci[oó]n|\breview\b|repaso|\bmodule\b|m[oó]dulo/, "notebook"]
+    [/country|pa[ií]s|nation|language|idioma|spanish|espa[nñ]ol|english|ingl[eé]s|flag|bandera/, "flag"]
+    // NOTE: no catch-all for structural-only names (unit/lesson/review) — they fall
+    // through to the hashed FALLBACK pool below, so "Lección 3" and "Module 5" get
+    // DIFFERENT icons instead of all sharing one. Real topic words above still win.
   ];
 
   // Access the lazily-loaded full set (src/ui/icons.js sets this global). Null until

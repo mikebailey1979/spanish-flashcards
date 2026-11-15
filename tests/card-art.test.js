@@ -11,19 +11,44 @@ const CardArt = require("../src/ui/card-art.js");
 const ICONS = global.SpanishFlashcardsIcons || {};
 
 const EXPECT = [
+  // fixed regressions
   ["Vacation — Unit 1, Lesson 2", "beach"],              // not umbrella (rain) / not cow (vaca)
   ["La playa / The beach", "beach"],
   ["Unit 1, Lesson 1 — Travel & Airport", "airplane"],  // topic beats the "Unit" structural word
   ["Transportation", "bus"],                             // not sport (tranSPORT)
+  // calendar vs festive (must stay distinct)
   ["Days of the week — Los días", "calendar"],
-  ["Food — Unidad 4 (La comida)", "vegetarian-food"],
+  ["Months / Los meses", "calendar-01"],
+  ["Holidays / Los días festivos", "gift"],
+  ["Birthdays / Los cumpleaños", "birthday-cake"],
+  ["Celebrations / Las celebraciones", "confetti"],
   ["Parties — Las fiestas", "party"],
-  ["Unidad 5 — Leisure, invitations, holidays & celebrations", "party"],
-  ["El tiempo libre", "game-controller"],
-  ["Lección preliminar — People, Activities & Places", "people"],
-  ["Feelings — Los sentimientos", "smile"],
-  ["Question words — Interrogativos", "quiz"],
+  // meals (distinct, not one "food" icon)
+  ["Breakfast / El desayuno", "croissant"],
+  ["Lunch / El almuerzo", "sandwich"],
+  ["Dinner / La cena", "plate"],
+  ["Food — Unidad 4 (La comida)", "vegetarian-food"],
+  // art / colors / shapes
+  ["Colors / Los colores", "colors"],
+  ["Art / El arte", "paint-brush-01"],
+  ["Shapes / Las formas", "geometric-shapes"],
+  // school / grammar
+  ["Homework / La tarea", "notebook-pen"],
   ["Classroom phrases — Frases útiles", "school"],
+  ["Adjectives / Los adjetivos", "bubble-chat"],
+  ["Grammar", "language-skill"],
+  ["Question words — Interrogativos", "quiz"],
+  // play / leisure / routine (distinct)
+  ["Games", "game-controller"],
+  ["Hobbies", "puzzle"],
+  ["El tiempo libre", "kite"],
+  ["My daily routine", "alarm-clock"],
+  // feelings vs emotions
+  ["Feelings — Los sentimientos", "smile"],
+  ["Emotions / Las emociones", "happy"],
+  // anchors
+  ["Lección preliminar — People, Activities & Places", "people"],
+  ["Farm animals / La granja", "tractor"],
   ["Los animales", "paw-print"],
   ["La familia", "user-group"],
   ["La ropa / Clothes", "clothes"],
@@ -32,7 +57,6 @@ const EXPECT = [
   ["Numbers 1–20", "calculator"],
   ["La casa / House", "house"],
   ["Weather — El clima", "weather"],
-  ["Colores", "paint-board"],
 ];
 
 for (const [name, icon] of EXPECT) {
@@ -45,9 +69,10 @@ test("every expected icon actually exists in the set", () => {
   for (const [, icon] of EXPECT) assert.ok(ICONS[icon], icon + " is missing from icons.js");
 });
 
-test("structural-only names fall to the neutral study icon, not a topic", () => {
-  assert.equal(CardArt.iconKey("Unidad 2"), "notebook");
-  assert.equal(CardArt.iconKey("Lesson 9"), "notebook");
+test("structural-only names vary (hashed fallback), not one shared icon", () => {
+  const a = CardArt.iconKey("Lección 3"), b = CardArt.iconKey("Module 5"), c = CardArt.iconKey("Unidad 2");
+  assert.ok(ICONS[a] && ICONS[b] && ICONS[c], "all are real icons");
+  assert.ok(new Set([a, b, c]).size >= 2, "structural names shouldn't all collapse to one icon");
 });
 
 test("iconKeyExplain reports how each match was reached", () => {
