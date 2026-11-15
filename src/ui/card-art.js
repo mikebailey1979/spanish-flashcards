@@ -286,7 +286,8 @@
   // leave the left/edges bare (the "Unidad 5 pattern stops before the left" bug),
   // so screenPat picks only from the tiling patterns via tilingPatternIndex.
   const FOCAL = [20, 21, 23, 24, 43, 46, 49];   // sunburst, radar, concentric, pie, topographic, dotted rings, spiral
-  const TILING = []; for (let i = 0; i < PATTERNS.length; i++) if (FOCAL.indexOf(i) < 0) TILING.push(i);
+  const BANNED = [22];                          // Guilloché — disliked; never generated for any wash or card.
+  const TILING = []; for (let i = 0; i < PATTERNS.length; i++) if (FOCAL.indexOf(i) < 0 && BANNED.indexOf(i) < 0) TILING.push(i);
 
   function keyOf(lesson) { return "" + ((lesson && (lesson.id || lesson.name)) || "lesson"); }
   function accent(lesson) { return PALETTE[hash(keyOf(lesson)) % PALETTE.length]; }

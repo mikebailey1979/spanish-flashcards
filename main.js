@@ -97,15 +97,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   //  in mount/sheet) so the tap plays a CACHED clip synchronously (iOS requires audio to
   //  start inside the gesture). If it isn't cached yet, we fetch it for next time and fall
   //  back to the browser voice for this one tap.
-  const _ttsCache = new Map();   // text -> data URL (null while a fetch is in flight)
-  const _ttsAudio = typeof Audio !== "undefined" ? new Audio() : null;
+  const _ttsCache = new Map();   // text -> pre-decoded Audio element (null while fetching)
   function ensureTtsAudio(text) {
     if (!text || !aiReady() || _ttsCache.has(text)) return;
     _ttsCache.set(text, null);   // mark in-flight (dedupe)
     const ad = aiAdapter();
     if (!ad) { _ttsCache.delete(text); return; }
     ad.ttsAudio(text, "es-ES")
-      .then((r) => { if (r && r.audio) _ttsCache.set(text, r.audio); else _ttsCache.delete(text); })
+      .then((r) => {
+        if (r && r.audio && typeof Audio !== "undefined") {
+          const a = new Audio(); a.preload = "auto"; a.src = r.audio;
+          try { a.load(); } catch {}    // decode BEFORE the tap so the first play isn't clipped
+          _ttsCache.set(text, a);
+        } else _ttsCache.delete(text);
+      })
       .catch(() => _ttsCache.delete(text));
   }
   function prefetchSpeakAudio() {
@@ -121,9 +126,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function speak(text, locale) {
     if (!text) return;
-    const url = _ttsCache.get(text);
-    if (url && _ttsAudio) {   // cached Azure clip → play in the tap gesture (media channel)
-      try { _ttsAudio.src = url; _ttsAudio.currentTime = 0; const p = _ttsAudio.play(); if (p && p.catch) p.catch(() => speakBrowser(text, locale)); return; } catch {}
+    const a = _ttsCache.get(text);
+    if (a && a.play) {   // pre-decoded Azure clip → play in the tap gesture (media channel), no clip
+      try { a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => speakBrowser(text, locale)); return; } catch {}
     }
     ensureTtsAudio(text);           // warm Azure for next time
     speakBrowser(text, locale);     // this tap: browser voice (ring channel / offline fallback)
@@ -705,7 +710,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const RESUME_KEY = "aliyah.resume";
   function saveResume() {
     if (!S || !S.queue.length) return;
-    try { localStorage.setItem(RESUME_KEY, JSON.stringify({ ids: S.queue.map((c) => c.id), idx: S.idx, right: S.right, total: S.total, at: Date.now() })); } catch {}
+    try { localStorage.setItem(RESUME_KEY, JSON.stringify({ ids: S.queue.map((c) => c.id), idx: S.idx, right: S.right, total: S.total, dir: S.dir, mode: S.mode, at: Date.now() })); } catch {}
   }
   function clearResume() { try { localStorage.removeItem(RESUME_KEY); } catch {} }
   function getResume() {
@@ -721,8 +726,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const map = new Map(cards.map((c) => [c.id, c]));
     const queue = r.ids.map((id) => map.get(id)).filter(Boolean);
     if (!queue.length) { clearResume(); return renderHome(); }
-    S = { queue, idx: Math.min(r.idx, queue.length - 1), right: r.right, total: r.total || queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, autoGrade: null, log: [] };
-    renderQuestion();
+    S = { queue, idx: Math.min(r.idx, queue.length - 1), right: r.right, total: r.total || queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, autoGrade: null, log: [], dir: r.dir || null, mode: r.mode || null };
+    renderQuestion(true);   // keep the saved direction/mode — backgrounding must not re-roll the question
   }
 
   const tabbar = (active) => `
@@ -826,7 +831,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const list = moreDue.map((l) => lessonRow(l, byLesson[l.id])).join("");
     mount(`<section class="screen screen--tabbed">
       <div class="home__head"><h1 class="t-h1">${esc(emu ? emu.name : user.displayName)}</h1>
-        ${st ? `<span class="streak-pill">${icon("flame")}${st}-day streak</span>` : ""}</div>
+        ${st ? `<button class="streak-pill" data-act="tab" data-tab="progress" aria-label="View your streak on Progress">${icon("flame")}${st}-day streak</button>` : ""}</div>
       ${hero}
       ${trickyRow}
       ${list ? `<div class="section-label"><span class="t-caps" style="opacity:.75">More to study</span>
@@ -1146,13 +1151,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     </div>`;
   }
 
-  function renderQuestion() {   // picks direction/mode ONCE, then renders
-    S.current = S.queue[S.idx];
+  function renderQuestion(keep) {   // picks direction/mode ONCE; keep=true restores the
+    S.current = S.queue[S.idx];     // saved pair on resume so backgrounding can't re-roll it.
     S.answered = false; S.idk = false; S.res = null; S.rating = null; S.typed = null;
-    S.dir = pickDir(); S.mode = pickMode();
+    if (!keep || !S.dir) S.dir = pickDir();
+    if (!keep || !S.mode) S.mode = pickMode();
     S.speak = { phase: "ready", heard: "", note: "", rec: null };
     renderCard();
     if (!S.endless) saveResume();   // persist a finite session so she can resume within 24h
+  }
+  // A long SINGLE word (e.g. "hardworking") shrinks to fit instead of wrapping
+  // mid-word; multiple words still wrap normally.
+  function fitSingleWord(el) {
+    if (!el) return;
+    el.style.whiteSpace = ""; el.style.fontSize = "";       // reset any earlier fit
+    const txt = (el.textContent || "").trim();
+    if (!txt || /\s/.test(txt)) return;                     // multiple words → wrap as usual
+    el.style.whiteSpace = "nowrap";
+    let size = parseFloat(getComputedStyle(el).fontSize) || 36, guard = 0;
+    while (el.scrollWidth > el.clientWidth && size > 20 && guard++ < 50) {
+      size -= 2; el.style.fontSize = size + "px";
+    }
   }
   function renderCard() {       // re-renderable (speak phases call this; mode stays)
     const c = S.current;
@@ -1183,6 +1202,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     const sp = screenPat("study");
     mount(`<section class="screen study"${sp.style}>${sp.patHTML}${studyHead()}<div class="study__stage">${stage}</div>${controls}</section>`);
+    fitSingleWord(document.querySelector(".study__prompt"));
     const input = document.getElementById("answer-input");
     const checkBtn = document.getElementById("check-btn");
     if (input) {
@@ -1366,6 +1386,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${toolRow}
       <button class="btn btn--primary" data-act="grade-next">${nextLabel}</button>
     </section><div id="sheet-host"></div>`);
+    fitSingleWord(document.querySelector(".answer-block .answer"));
     if (correct) launchConfetti();
   }
 
@@ -1417,6 +1438,31 @@ document.addEventListener("DOMContentLoaded", async () => {
       `<div class="scrim" data-act="close-sheet"></div><div class="sheet"><div class="sheet__handle"></div>${html}</div>`);
     prefetchSpeakAudio();   // warm Azure TTS for any speaker buttons in the sheet
   }
+  // Swipe the bottom tray down (from its handle / top edge) to dismiss it — closing
+  // through the scrim's own action so each sheet's cleanup still runs.
+  (function sheetDrag() {
+    let y0 = null, el = null;
+    app.addEventListener("touchstart", (e) => {
+      const s = e.target.closest(".sheet"); el = null;
+      if (!s) return;
+      const near = e.target.closest(".sheet__handle") || (e.touches[0].clientY - s.getBoundingClientRect().top) < 64;
+      if (!near) return;
+      y0 = e.touches[0].clientY; el = s; el.style.transition = "none";
+    }, { passive: true });
+    app.addEventListener("touchmove", (e) => {
+      if (!el) return;
+      el.style.transform = `translate(-50%, ${Math.max(0, e.touches[0].clientY - y0)}px)`;
+    }, { passive: true });
+    app.addEventListener("touchend", (e) => {
+      if (!el) return;
+      const dy = e.changedTouches[0].clientY - y0, cur = el; el = null;
+      cur.style.transition = "";
+      if (dy > 110) {
+        const scrim = (cur.previousElementSibling && cur.previousElementSibling.classList.contains("scrim")) ? cur.previousElementSibling : app.querySelector(".scrim");
+        if (scrim) scrim.click(); else cur.remove();
+      } else { cur.style.transform = ""; }
+    }, { passive: true });
+  })();
   function openLessonMenu(id) {
     const l = lessons.find((x) => x.id === id); if (!l) return;
     const catOf = new Map(allCards.map((c) => [c.id, c.category || "—"]));

@@ -21,8 +21,9 @@
 .study__prompt { max-width: 100%; }
 .study__sub { opacity: .85; font-size: var(--t-body-l); }
 .study__controls { display: flex; flex-direction: column; gap: var(--s-4); }
-.study__answerrow { display: flex; gap: var(--s-4); }
+.study__answerrow { display: flex; gap: var(--s-4); align-items: stretch; }
 .study__answerrow .btn { width: auto; flex: 1; }
+.study__answerrow .btn + .btn { margin-top: 0; }   /* side-by-side, not stacked */
 .study__answerrow .btn--idk { flex: 0 0 auto; padding: 0 var(--s-7); }
 /* Choose-mode options */
 .options { display: flex; flex-direction: column; gap: var(--s-4); width: 100%; }
@@ -56,7 +57,8 @@
 .streak-pill { display: inline-flex; align-items: center; gap: 6px; height: 34px;
   padding: 0 var(--s-5); border-radius: var(--r-pill); background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px var(--accent-soft);
-  font-size: 13px; font-weight: 700; }
+  font-size: 13px; font-weight: 700; cursor: pointer; }
+.streak-pill:active { transform: scale(.96); }
 .streak-pill .icon { width: 16px; height: 16px; }
 /* "N weeks!" pill beside the Progress streak title (shown once a week is complete). */
 .streak-weeks { align-self: center; margin-left: 2px; padding: 4px 11px; border-radius: var(--r-pill);
@@ -148,6 +150,16 @@
 .state-pat--correct { background-position: center; background-size: 760px; background-repeat: no-repeat; opacity: .14; }
 .state-pat--notquite { background-size: 220px; background-repeat: repeat; opacity: .22; }
 .state-pat--idk { background-size: 300px; background-repeat: repeat; opacity: .12; }
+/* The light-blue rings read too strong on the dark navy ground — lighten them there. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .state-pat--idk { opacity: .055; } }
+:root[data-theme="dark"] .state-pat--idk { opacity: .055; }
+
+/* Full-bleed fix: a fixed, viewport-covering layer in the answer state's own colour,
+   so the coloured screen reaches under the iOS safe areas (no blue/navy letterbox
+   bands top or bottom). Sits behind all content. */
+.screen.is-correct::after, .screen.is-notquite::after, .screen.is-idk::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; background: inherit; pointer-events: none;
+}
 
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
 .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
