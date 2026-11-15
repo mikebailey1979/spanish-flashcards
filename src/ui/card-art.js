@@ -118,25 +118,137 @@
     book: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M15.5 7h-7m3.999 4h-4M20 22H6a2 2 0 0 1-2-2m0 0a2 2 0 0 1 2-2h14V6c0-1.886 0-2.828-.586-3.414S17.886 2 16 2h-6c-2.828 0-4.243 0-5.121.879C4 3.757 4 5.172 4 8z"/><path d="M19.5 18s-1 .763-1 2s1 2 1 2"/></g>'
   };
 
-  // Keyword → icon (first match wins; order specific → general). ES + EN cues.
-  // Order: specific → general. Short/ambiguous tokens are \b-bounded so a stray
-  // substring (e.g. "te" inside "tener") can't trigger the wrong icon.
+  // Keyword → icon-slug (first match wins; order specific → general). ES + EN cues.
+  // Slugs are from the full Hugeicons set (src/ui/icons.js); short/ambiguous tokens
+  // are \b-bounded so a stray substring can't trigger the wrong icon. When nothing
+  // here matches, iconKey falls through to a direct icon-name match, then a hashed
+  // pick from FALLBACK — so new lessons get varied, stable, mostly-relevant icons.
   const KW = [
-    [/travel|airport|flight|\bplane\b|\btrip\b|viaj|aeropuerto|vuelo/, "plane"],
-    [/vacation|vacacion|holiday|beach|playa|summer|verano|hotel/, "umbrella"],
+    // food & drink
     [/fruit|fruta|\bapple\b|manzana/, "apple"],
-    [/breakfast|desayuno|coffee|caf[eé]|\bdrink\b|bebida|\btea\b|\bt[eé]\b/, "coffee"],
-    [/lunch|almuerzo|salad|ensalada|vegetable|verdura|veggie/, "salad"],
-    [/dinner|cena|\bmeat\b|carne|steak|beef|pollo|chicken/, "steak"],
-    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|cocina|kitchen|restaurant|snack/, "food"],
+    [/\bpizza\b/, "pizza"],
+    [/burger|hamburgues/, "hamburger"],
+    [/salad|ensalada|vegetable|verdura|veggie|lettuce/, "salad"],
+    [/\bmeat\b|carne|steak|beef|bistec|pollo|chicken/, "steak"],
+    [/\bfish\b|pescado|\bpez\b|seafood|marisc/, "fish"],
+    [/\brice\b|arroz/, "rice-bowl"],
+    [/bread|\bpan\b|panader|bakery/, "bread"],
+    [/cheese|queso/, "cheese"],
+    [/\begg\b|huevo/, "egg"],
+    [/\bcake\b|pastel|torta|tarta|dessert|postre|dulce|sweet/, "birthday-cake"],
+    [/coffee|caf[eé]/, "coffee"],
+    [/\btea\b|\bt[eé]\b/, "tea"],
+    [/\bmilk\b|leche/, "milk"],
+    [/\bwater\b|agua/, "water"],
+    [/\bdrink\b|bebida|\bjuice\b|jugo|zumo|smoothie/, "drink"],
+    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|cocina|kitchen|restaurant|snack|desayuno|almuerzo|\bcena\b|lunch|dinner|breakfast|grocery|supermerc/, "vegetarian-food"],
+    // animals & nature
+    [/\bcat\b|\bgato\b|kitten|gatito/, "cat"],
+    [/\bbird\b|p[aá]jaro|\bave\b/, "bird"],
+    [/horse|caballo|pony/, "horse"],
+    [/rabbit|conejo|bunny/, "rabbit"],
+    [/\bbug\b|insect|insecto|spider|ara[nñ]a/, "bug"],
+    [/animal|animales|\bpet\b|mascota|\bzoo\b|\bdog\b|perro|\bcow\b|\bvaca\b|\bpig\b|cerdo/, "paw-print"],
+    [/flower|\bflor\b|florist/, "flower"],
+    [/\btree\b|[aá]rbol|forest|bosque|jungle|selva/, "tree"],
+    [/\bleaf\b|hoja|plant|planta|garden|jard[ií]n|nature|naturaleza/, "plant"],
+    [/mountain|monta[nñ]a|hiking|senderismo/, "mountain"],
+    [/beach|playa|\bsea\b|\bmar\b|ocean|oc[eé]ano|island|isla/, "beach"],
+    // weather / sky / time of day
+    [/rainbow|arco iris/, "rainbow"],
+    [/\brain\b|lluvia|rainy|lluvioso/, "rain"],
+    [/\bsnow\b|nieve|winter|invierno/, "snow"],
+    [/\bsun\b|\bsol\b|sunny|soleado|verano|\bsummer\b/, "sun"],
+    [/\bmoon\b|luna|\bnight\b|noche/, "moon"],
+    [/cloud|\bnube\b|cloudy|nublado/, "cloud"],
+    [/weather|clima|forecast|pron[oó]stico/, "weather"],
+    [/umbrella|paraguas|vacation|vacacion|holiday/, "umbrella"],
+    // people, family, feelings
+    [/family|familia|parent|padres|\bmom\b|\bmum\b|\bdad\b|madre|padre|hermano|hermana|sibling/, "user-group"],
+    [/baby|beb[eé]|infant/, "baby"],
+    [/people|gente|persona|\bplace|activit|preliminar|friend|amigo|community|comunidad/, "people"],
+    [/\blove\b|amor|coraz[oó]n|\bheart\b|romance/, "heart"],
+    [/\bsad\b|triste|cry|llor/, "sad"],
+    [/angry|enoj|enfad|mad\b/, "angry"],
+    [/\bhappy\b|feliz|content|alegr|\bjoy\b/, "happy"],
+    [/feel|emotion|emoci|\bestar\b|\btener\b|\bmood\b|sentim|condition|\bface\b|\bcara\b|smile|sonri/, "smile"],
+    // home & places
+    [/kitchen|cocina/, "kitchen"],
+    [/bed|\bcama\b|bedroom|dormitorio|habitaci/, "bed"],
+    [/\bhouse\b|\bcasa\b|\bhome\b|hogar|apartment|apartamento/, "house"],
+    [/city|ciudad|\btown\b|pueblo|urban/, "city"],
+    [/building|edificio|office|oficina/, "building"],
+    [/\bdoor\b|puerta/, "door"],
+    [/library|biblioteca/, "library"],
+    [/\bstore\b|\bshop\b|tienda|mercado|\bmarket\b|mall|shopping|compra/, "store"],
+    // school & learning
+    [/teacher|maestr|profesor/, "teacher"],
+    [/student|estudiante|alumn|pupil/, "student"],
+    [/class|school|escuela|colegio|homework|tarea|\baula\b/, "school"],
+    [/grammar|gram[aá]tica|verb|verbo|conjugat|\bnoun\b|sustantivo|adjetiv|adjective|\btense\b|phrase|frase|vocabular|palabra/, "language-skill"],
+    [/question|interrogat|pregunta|\bask\b|\bpor qu[eé]\b|\bhow\b|\bc[oó]mo\b|\bqu[eé]\b|\bqui[eé]n\b|\bwhere\b|\bd[oó]nde\b/, "quiz"],
+    // transport & travel
+    [/\bcar\b|coche|carro|\bauto\b|veh[ií]cle|veh[ií]culo/, "car"],
+    [/\bbus\b|autob[uú]s|\bcoach\b/, "bus"],
+    [/\btrain\b|\btren\b|railway|metro|subway/, "train"],
+    [/\bplane\b|airplane|avi[oó]n|airport|aeropuerto|flight|vuelo|travel|viaj/, "airplane"],
+    [/\bbike\b|bicycle|bicicleta|cycling/, "bicycle"],
+    [/\bboat\b|barco|\bship\b|sail|navegar/, "boat"],
+    [/transport|transporte|comm?ute|movilidad/, "bus"],
+    [/rocket|cohete|\bspace\b|espacio|planet|planeta/, "rocket"],
+    [/\bmap\b|mapa|location|ubicaci|lugar|\bplace\b|direction|direcci/, "location"],
+    // clothes & body
+    [/clothes|\bropa\b|clothing|\bwear\b|vestir|outfit/, "clothes"],
+    [/\bdress\b|vestido|skirt|falda/, "dress"],
+    [/shirt|camisa|camiseta|blouse/, "t-shirt"],
+    [/\bshoe\b|shoes|zapato|calzado|sneaker|boot\b/, "shoes"],
+    [/\bhat\b|sombrero|\bcap\b|gorra/, "hat"],
+    [/\bhand\b|\bmano\b|finger|dedo/, "hand"],
+    [/\beye\b|\bojo\b|vision/, "eye"],
+    [/tooth|teeth|diente|dental/, "dental-tooth"],
+    // sports, music, art, play
+    [/soccer|f[uú]tbol|football/, "football"],
+    [/basketball|baloncesto|\bnba\b/, "basketball"],
+    [/tennis/, "tennis-ball"],
+    [/swim|nadar|nataci/, "swimming"],
+    [/\brun\b|running|correr|jogging/, "running"],
+    [/\bsport|deporte|exercise|ejercicio|\bgym\b|fitness|\bball\b|pelota|bal[oó]n/, "dumbbell"],
+    [/leisure|hobby|hobbies|pasatiempo|tiempo libre|free time/, "game-controller"],
+    [/guitar|guitarra/, "guitar"],
+    [/piano|keyboard musical/, "piano"],
+    [/music|m[uú]sica|\bsong\b|canci[oó]n|\bsing\b|cantar|instrument/, "music-note"],
+    [/paint|pint|\bart\b|\bdraw\b|dibuj|\bcolou?r\b|colores|craft/, "paint-board"],
+    [/\bgame\b|juego|jugar|\bplay\b|\btoy\b|juguete|puzzle/, "game-controller"],
+    // time, numbers, money, symbols
+    [/\bday\b|d[ií]as?\b|\bweek\b|semana|\bmonth\b|\bmes\b|\bdate\b|fecha|calendar|season|estaci[oó]n/, "calendar"],
+    [/\btime\b|\bhora\b|\bhour\b|clock|reloj|schedule|horario|minute|minuto/, "clock"],
+    [/number|n[uú]mero|\bcount\b|contar|\bmath\b|matem|arithmetic/, "calculator"],
+    [/money|dinero|\bprice\b|precio|\bcost\b|\bdollar\b|\bpeso\b|\beuro\b|\bbuy\b|comprar|\bpay\b|pagar/, "money"],
+    [/gift|regalo|present\b/, "gift"],
     [/part(y|ies)|fiesta|celebrat|birthday|cumplea|leisure|invitation|\bfest/, "party"],
-    [/animal|animales|\bpet\b|mascota|\bzoo\b/, "paw"],
-    [/people|activit|\bplace|persona|gente|family|familia|preliminar|friend|amigo/, "people"],
-    [/class|school|escuela|homework|tarea|aula|lecci[oó]n|phrase|frase/, "school"],
-    [/\bday\b|d[ií]as?\b|week|semana|\bmonth\b|\bmes\b|\bdate\b|fecha|\btime\b|\bhora\b|calendar|season/, "calendar"],
-    [/feel|emotion|\bestar\b|\btener\b|mood|sentim|condition|happy|\bsad\b/, "feelings"],
-    [/question|interrogat|pregunta|\bask\b|\bpor qu[eé]\b|\bhow\b/, "question"]
+    [/country|pa[ií]s|nation|language|idioma|spanish|espa[nñ]ol|english|ingl[eé]s|flag|bandera/, "flag"],
+    // Lowest priority: a lesson named only structurally (no topic word) → a neutral
+    // study icon, so real topic words above always win (e.g. "Unit 1 — Travel" → plane).
+    [/\bunit\b|\bunidad\b|\blesson\b|lecci[oó]n|\bchapter\b|cap[ií]tulo|\bsection\b|secci[oó]n|\breview\b|repaso|\bmodule\b|m[oó]dulo/, "notebook"]
   ];
+
+  // Access the lazily-loaded full set (src/ui/icons.js sets this global). Null until
+  // it loads — iconSvg then falls back to the inline CORE set, and the app re-renders
+  // on the "sf-icons-ready" event (see main.js).
+  function bigIcons() {
+    const g = (typeof self !== "undefined" && self) || (typeof window !== "undefined" && window) || null;
+    return (g && g.SpanishFlashcardsIcons) || null;
+  }
+  let _nameSet = null;
+  function bigNameSet() { const b = bigIcons(); if (!b) return null; if (!_nameSet) _nameSet = new Set(Object.keys(b)); return _nameSet; }
+
+  // Pleasant, topic-neutral icons for lessons that match no keyword — a hashed pick
+  // from this pool gives variety without landing on something odd from the full set.
+  const FALLBACK = ["book", "book-open", "notebook", "star", "sparkles", "bookmark", "favourite",
+    "idea-01", "bulb", "puzzle", "shapes", "target", "language-skill", "translate", "graduation-scroll",
+    "mortarboard", "quiz", "globe", "flag", "pencil-edit", "magic-wand", "trophy", "medal", "award",
+    "crown", "rainbow", "balloon", "music-note", "paint-board", "palette", "rocket", "flower", "leaf",
+    "sun", "heart", "smile", "party", "gift", "dice"];
 
   const PALETTE = ["#FFC24B", "#FF8A6B", "#2DC2A0", "#9A8CFF", "#F48FB6", "#5BB8E8", "#86C443", "#F0A54A", "#7FD0C0", "#FF9FB0"];
 
@@ -149,11 +261,31 @@
 
   function keyOf(lesson) { return "" + ((lesson && (lesson.id || lesson.name)) || "lesson"); }
   function accent(lesson) { return PALETTE[hash(keyOf(lesson)) % PALETTE.length]; }
-  function iconKey(name) { name = ("" + (name || "")).toLowerCase(); for (let i = 0; i < KW.length; i++) if (KW[i][0].test(name)) return KW[i][1]; return "book"; }
+  function norm(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+  // Pick an icon slug for a lesson from its name (+ optional extra text): a keyword
+  // match first, then a direct hit on an icon's own name, then a stable hashed pick.
+  function iconKey(text) {
+    const raw = " " + String(text || "").toLowerCase() + " ";
+    for (let i = 0; i < KW.length; i++) if (KW[i][0].test(raw)) return KW[i][1];
+    // direct icon-name match: a word in the lesson that IS an icon slug (uses the full set)
+    const set = bigNameSet();
+    if (set) {
+      const toks = norm(text).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+      for (let i = 0; i < toks.length; i++) if (set.has(toks[i])) return toks[i];
+      for (let i = 0; i < toks.length; i++) if (set.has(toks[i] + "-01")) return toks[i] + "-01";
+    }
+    return FALLBACK[hash("" + (text || "") + "|ic") % FALLBACK.length];
+  }
   function patternIndex(lesson) { return hash(keyOf(lesson) + "|pat") % PATTERNS.length; }
   // Deterministic, but drawn only from the edge-to-edge tiling patterns.
   function tilingPatternIndex(lesson) { return TILING[hash(keyOf(lesson) + "|pat") % TILING.length]; }
-  function iconSvg(key) { return '<svg viewBox="0 0 24 24">' + (ICONS[key] || ICONS.book) + "</svg>"; }
+  // Inner markup comes from the full set when loaded, else the inline CORE fallback.
+  // Wrapper carries the stroke-geometry defaults the transform stripped from paths.
+  function iconSvg(key) {
+    const big = bigIcons();
+    const inner = (big && big[key]) || ICONS[key] || ICONS.book;
+    return '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + inner + "</svg>";
+  }
   function patternSvg(index) { const p = PATTERNS[((index % PATTERNS.length) + PATTERNS.length) % PATTERNS.length]; return { name: p[0], opacity: p[1], svg: S(p[2]()) }; }
 
   /** Everything a card needs: {color, icon, patHTML, wmHTML}. */

@@ -43,6 +43,10 @@
 <script src="src/ai/ai-adapter.js" defer></script>
 <script src="src/roleplay/roleplay.js" defer></script>
 <script src="src/ui/card-art.js" defer></script>
+<!-- Full Hugeicons set (MIT). Loaded ASYNC, off the boot path: card-art falls back
+     to its inline core until this lands, then fires "sf-icons-ready" to re-render.
+     ~1.3MB gzipped, cached by the service worker on first load. -->
+<script src="src/ui/icons.js" async></script>
 <!-- UI controller -->
 <script src="config.js" defer></script>
 <script src="main.js" defer></script>

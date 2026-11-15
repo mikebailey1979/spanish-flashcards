@@ -3008,6 +3008,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   function boot() { authGate(); }
   window.addEventListener("hashchange", authGate);
   authGate();
+  // The full icon set (src/ui/icons.js) loads async, off the boot path. When it
+  // arrives, upgrade icons on the current calm top-level screen once — but never
+  // interrupt an active study session, a capture flow, or an open sheet.
+  function rerenderForIcons() {
+    if (S && S.queue && S.queue.length) return;
+    if (document.querySelector(".sheet, .scrim")) return;
+    const v = currentView && currentView.v;
+    if (v === "home") renderHome();
+    else if (v === "lessons") renderLessons();
+    else if (v === "lesson" && currentView.id) renderLessonDetail(currentView.id);
+    else if (v === "tricky") renderTricky();
+    else if (v === "progress") renderProgress();
+    else if (v === "me") renderMe();
+  }
+  if (!window.SpanishFlashcardsIcons) {
+    window.addEventListener("sf-icons-ready", () => { try { rerenderForIcons(); } catch (e) {} }, { once: true });
+  }
   // console poking (getters: user/ctx are reassigned on sign-in)
   window.__app = { store, get user() { return user; }, get ctx() { return ctx; }, renderAuth, authConfig, runSync, explain: openExplain, example: openExample, adjudicate: openAdjudicate, pronounce: openPronounce,
     cap: { start: startCapture, reading: renderReading, firstrun: renderFirstRun, offline: renderCapOffline, downscale: downscaleImage,
