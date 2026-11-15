@@ -84,8 +84,16 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
   h1 { font-size:20px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 16px; }
   .legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; font-size:13px; }
   .legend b { font-variant-numeric:tabular-nums; }
-  .filters { margin-bottom:16px; } .filters button { font:inherit; font-size:13px; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:6px 12px; border-radius:999px; cursor:pointer; }
-  .filters button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .r { position:absolute; width:0; height:0; opacity:0; pointer-events:none; }
+  .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .filters label { font-size:13px; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:6px 12px; border-radius:999px; cursor:pointer; user-select:none; }
+  #f-all:checked ~ .filters label[for="f-all"],
+  #f-fallback:checked ~ .filters label[for="f-fallback"],
+  #f-name:checked ~ .filters label[for="f-name"],
+  #f-keyword:checked ~ .filters label[for="f-keyword"] { background:var(--ink); color:#fff; border-color:var(--ink); }
+  #f-fallback:checked ~ .grid .c:not([data-via="fallback"]),
+  #f-name:checked ~ .grid .c:not([data-via="name"]),
+  #f-keyword:checked ~ .grid .c:not([data-via="keyword"]) { display:none; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; }
   .c { display:flex; gap:12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
   .c[hidden] { display:none !important; }
@@ -103,21 +111,17 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
     <span style="color:${dot.name}">● direct-name <b>${counts.name || 0}</b></span>
     <span style="color:${dot.fallback}">● hashed-fallback <b>${counts.fallback || 0}</b> (review these first)</span>
   </div>
+  <input class="r" type="radio" name="f" id="f-all" checked>
+  <input class="r" type="radio" name="f" id="f-fallback">
+  <input class="r" type="radio" name="f" id="f-name">
+  <input class="r" type="radio" name="f" id="f-keyword">
   <div class="filters">
-    <button data-f="all" class="on">All</button>
-    <button data-f="fallback">Fallback</button>
-    <button data-f="name">Direct-name</button>
-    <button data-f="keyword">Keyword</button>
+    <label for="f-all">All (${rows.length})</label>
+    <label for="f-fallback">Fallback (${counts.fallback || 0})</label>
+    <label for="f-name">Direct-name (${counts.name || 0})</label>
+    <label for="f-keyword">Keyword (${counts.keyword || 0})</label>
   </div>
   <div class="grid">${rows.map(card).join("")}</div>
-  <script>
-    const btns = document.querySelectorAll('.filters button'), cards = document.querySelectorAll('.c');
-    btns.forEach(b => b.addEventListener('click', () => {
-      btns.forEach(x => x.classList.toggle('on', x === b));
-      const f = b.dataset.f;
-      cards.forEach(c => c.hidden = !(f === 'all' || c.dataset.via === f));
-    }));
-  </script>
 </body></html>`;
 
 const out = path.resolve(process.cwd(), process.argv[2] || "icon-review.html");

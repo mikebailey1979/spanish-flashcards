@@ -228,7 +228,7 @@
     [/paint|pint|\bart\b|\bdraw\b|dibuj|\bcolou?r\b|colores|craft/, "paint-board"],
     [/\bgame\b|juego|jugar|\bplay\b|\btoy\b|juguete|puzzle/, "game-controller"],
     // time, numbers, money, symbols
-    [/\bday\b|d[ií]as?\b|\bweek\b|semana|\bmonth\b|\bmes\b|\bdate\b|fecha|calendar|season|estaci[oó]n/, "calendar"],
+    [/\bday\b|d[ií]as?\b|\bweeks?\b|semanas?|\bmonths?\b|\bmes(es)?\b|\bdate\b|fecha|calendar|calendario|season|estaci[oó]n/, "calendar"],
     [/\btime\b|\bhora\b|\bhour\b|clock|reloj|schedule|horario|minute|minuto/, "clock"],
     [/number|n[uú]mero|\bcount\b|contar|\bmath\b|matem|arithmetic/, "calculator"],
     [/money|dinero|\bprice\b|precio|\bcost\b|\bdollar\b|\bpeso\b|\beuro\b|\bbuy\b|comprar|\bpay\b|pagar/, "money"],
