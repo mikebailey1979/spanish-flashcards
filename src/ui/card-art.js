@@ -160,7 +160,7 @@
     [/\bsnow\b|nieve|winter|invierno/, "snow"],
     [/\bsun\b|\bsol\b|sunny|soleado|verano|\bsummer\b/, "sun"],
     [/\bmoon\b|luna|\bnight\b|noche/, "moon"],
-    [/cloud|\bnube\b|cloudy|nublado/, "cloud"],
+    [/cloud|\bnube\b|cloudy|nublado|\bsky\b|cielo/, "cloud"],
     [/weather|clima|forecast|pron[oó]stico/, "weather"],
     [/umbrella|paraguas/, "umbrella"],
     // people, family, feelings
@@ -172,6 +172,7 @@
     [/angry|enoj|enfad|mad\b/, "angry"],
     [/\bhappy\b|feliz|content|alegr|\bjoy\b/, "happy"],
     [/feel|emotion|emoci|\bestar\b|\btener\b|\bmood\b|sentim|condition|\bface\b|\bcara\b|smile|sonri/, "smile"],
+    [/greeting|saludo|\bhello\b|\bhola\b|goodbye|adi[oó]s|farewell/, "hand"],
     // home & places
     [/kitchen|cocina/, "kitchen"],
     [/bed|\bcama\b|bedroom|dormitorio|habitaci/, "bed"],
@@ -181,11 +182,18 @@
     [/\bdoor\b|puerta/, "door"],
     [/library|biblioteca/, "library"],
     [/\bstore\b|\bshop\b|tienda|mercado|\bmarket\b|mall|shopping|compra/, "store"],
+    // daily life
+    [/\bjob\b|jobs|trabajo|profession|profesi|\bcareer\b|oficio/, "briefcase"],
+    [/technolog|tecnolog|computer|ordenador|internet|\bonline\b|\bdigital\b/, "computer"],
+    [/furniture|mueble/, "sofa"],
+    [/\bbarrio\b|vecindario|neighbou?rhood/, "building"],
+    [/\bhealth\b|\bsalud\b|\bsick\b|enfermo|m[eé]dico|hospital|medicine|medicina|\bdoctor\b/, "stethoscope"],
+    [/routine|rutina|daily life|vida diaria/, "clock"],
     // school & learning
     [/teacher|maestr|profesor/, "teacher"],
     [/student|estudiante|alumn|pupil/, "student"],
     [/class|school|escuela|colegio|homework|tarea|\baula\b/, "school"],
-    [/grammar|gram[aá]tica|verb|verbo|conjugat|\bnoun\b|sustantivo|adjetiv|adjective|\btense\b|phrase|frase|vocabular|palabra/, "language-skill"],
+    [/grammar|gram[aá]tica|verb|verbo|conjugat|\bnoun\b|sustantivo|adjetiv|adjective|adverb|pronoun|pronombre|preposition|preposici|\btense\b|phrase|frase|vocabular|palabra|alphabet|alfabeto|abecedario/, "language-skill"],
     [/question|interrogat|pregunta|\bask\b|\bpor qu[eé]\b|\bhow\b|\bc[oó]mo\b|\bqu[eé]\b|\bqui[eé]n\b|\bwhere\b|\bd[oó]nde\b/, "quiz"],
     // transport & travel
     [/\bcar\b|coche|carro|\bauto\b|veh[ií]cle|veh[ií]culo/, "car"],
@@ -206,6 +214,7 @@
     [/\bhand\b|\bmano\b|finger|dedo/, "hand"],
     [/\beye\b|\bojo\b|vision/, "eye"],
     [/tooth|teeth|diente|dental/, "dental-tooth"],
+    [/\bbody\b|cuerpo|anatom/, "body-part-muscle"],
     // sports, music, art, play
     [/soccer|f[uú]tbol|football/, "football"],
     [/basketball|baloncesto|\bnba\b/, "basketball"],
@@ -264,17 +273,20 @@
   function norm(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
   // Pick an icon slug for a lesson from its name (+ optional extra text): a keyword
   // match first, then a direct hit on an icon's own name, then a stable hashed pick.
-  function iconKey(text) {
+  function iconKey(text) { return iconKeyExplain(text).icon; }
+  // Same decision, but reports HOW it was reached — for HITL review tooling + tests.
+  // via: "keyword" | "name" | "fallback"; rule: the regex / token / "(hashed)".
+  function iconKeyExplain(text) {
     const raw = " " + String(text || "").toLowerCase() + " ";
-    for (let i = 0; i < KW.length; i++) if (KW[i][0].test(raw)) return KW[i][1];
-    // direct icon-name match: a word in the lesson that IS an icon slug (uses the full set)
+    for (let i = 0; i < KW.length; i++) if (KW[i][0].test(raw)) return { icon: KW[i][1], via: "keyword", rule: String(KW[i][0]) };
     const set = bigNameSet();
     if (set) {
       const toks = norm(text).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
-      for (let i = 0; i < toks.length; i++) if (set.has(toks[i])) return toks[i];
-      for (let i = 0; i < toks.length; i++) if (set.has(toks[i] + "-01")) return toks[i] + "-01";
+      for (let i = 0; i < toks.length; i++) if (set.has(toks[i])) return { icon: toks[i], via: "name", rule: toks[i] };
+      for (let i = 0; i < toks.length; i++) if (set.has(toks[i] + "-01")) return { icon: toks[i] + "-01", via: "name", rule: toks[i] + "-01" };
     }
-    return FALLBACK[hash("" + (text || "") + "|ic") % FALLBACK.length];
+    const f = FALLBACK[hash("" + (text || "") + "|ic") % FALLBACK.length];
+    return { icon: f, via: "fallback", rule: "(hashed fallback — add a keyword rule to fix)" };
   }
   function patternIndex(lesson) { return hash(keyOf(lesson) + "|pat") % PATTERNS.length; }
   // Deterministic, but drawn only from the edge-to-edge tiling patterns.
@@ -301,5 +313,5 @@
     };
   }
 
-  return { accent, iconKey, patternIndex, tilingPatternIndex, iconSvg, patternSvg, card, PALETTE, PATTERN_COUNT: PATTERNS.length };
+  return { accent, iconKey, iconKeyExplain, patternIndex, tilingPatternIndex, iconSvg, patternSvg, card, PALETTE, PATTERN_COUNT: PATTERNS.length };
 });
