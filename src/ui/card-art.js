@@ -153,7 +153,7 @@
     [/\btree\b|[aá]rbol|forest|bosque|jungle|selva/, "tree"],
     [/\bleaf\b|hoja|plant|planta|garden|jard[ií]n|nature|naturaleza/, "plant"],
     [/mountain|monta[nñ]a|hiking|senderismo/, "mountain"],
-    [/beach|playa|\bsea\b|\bmar\b|ocean|oc[eé]ano|island|isla/, "beach"],
+    [/beach|playa|\bsea\b|\bmar\b|ocean|oc[eé]ano|\bisland\b|\bisla\b|vacation|vacacion|vacaciones|seaside|\bresort\b|\bcruise\b|tropical/, "beach"],
     // weather / sky / time of day
     [/rainbow|arco iris/, "rainbow"],
     [/\brain\b|lluvia|rainy|lluvioso/, "rain"],
@@ -162,7 +162,7 @@
     [/\bmoon\b|luna|\bnight\b|noche/, "moon"],
     [/cloud|\bnube\b|cloudy|nublado/, "cloud"],
     [/weather|clima|forecast|pron[oó]stico/, "weather"],
-    [/umbrella|paraguas|vacation|vacacion|holiday/, "umbrella"],
+    [/umbrella|paraguas/, "umbrella"],
     // people, family, feelings
     [/family|familia|parent|padres|\bmom\b|\bmum\b|\bdad\b|madre|padre|hermano|hermana|sibling/, "user-group"],
     [/baby|beb[eé]|infant/, "baby"],
@@ -213,7 +213,6 @@
     [/swim|nadar|nataci/, "swimming"],
     [/\brun\b|running|correr|jogging/, "running"],
     [/\bsport|deporte|exercise|ejercicio|\bgym\b|fitness|\bball\b|pelota|bal[oó]n/, "dumbbell"],
-    [/leisure|hobby|hobbies|pasatiempo|tiempo libre|free time/, "game-controller"],
     [/guitar|guitarra/, "guitar"],
     [/piano|keyboard musical/, "piano"],
     [/music|m[uú]sica|\bsong\b|canci[oó]n|\bsing\b|cantar|instrument/, "music-note"],
@@ -225,7 +224,8 @@
     [/number|n[uú]mero|\bcount\b|contar|\bmath\b|matem|arithmetic/, "calculator"],
     [/money|dinero|\bprice\b|precio|\bcost\b|\bdollar\b|\bpeso\b|\beuro\b|\bbuy\b|comprar|\bpay\b|pagar/, "money"],
     [/gift|regalo|present\b/, "gift"],
-    [/part(y|ies)|fiesta|celebrat|birthday|cumplea|leisure|invitation|\bfest/, "party"],
+    [/part(y|ies)|fiesta|celebrat|birthday|cumplea|invitation|invitaci|holiday|holidays|\bfest/, "party"],
+    [/leisure|hobby|hobbies|pasatiempo|tiempo libre|free time/, "game-controller"],
     [/country|pa[ií]s|nation|language|idioma|spanish|espa[nñ]ol|english|ingl[eé]s|flag|bandera/, "flag"],
     // Lowest priority: a lesson named only structurally (no topic word) → a neutral
     // study icon, so real topic words above always win (e.g. "Unit 1 — Travel" → plane).
