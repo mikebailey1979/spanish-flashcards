@@ -10,6 +10,8 @@
 .study-head__lesson { flex: 1; font-size: 15px; font-weight: 700; opacity: .92;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .study-head__count { font-size: 14px; font-weight: 700; opacity: .7; }
+.study-head__count--inf { font-size: 22px; line-height: 1; opacity: .92; }
+.inf-glyph { font-size: 1.25em; font-weight: 800; vertical-align: -0.06em; margin-right: 2px; }
 
 /* ---- Study question ------------------------------------------------------- */
 .study { justify-content: space-between; }
@@ -41,6 +43,12 @@
   justify-content: center; text-align: center; gap: var(--s-6); }
 .done__num { line-height: .9; }
 .done__trickies { display: flex; flex-wrap: wrap; gap: var(--s-3); justify-content: center; }
+/* End-of-lesson coaching tips (patterns from the just-finished session). */
+.done-tips { margin-top: var(--s-4); max-width: 320px; display: flex; flex-direction: column;
+  gap: 6px; padding: var(--s-5); border-radius: var(--r-card);
+  background: rgba(255,255,255,.14); backdrop-filter: blur(2px); }
+.done-tips__words { font-weight: 800; font-size: 17px; }
+.done-tips__tip { font-size: 13.5px; opacity: .9; line-height: 1.35; }
 
 /* ---- Home ----------------------------------------------------------------- */
 .home__head { display: flex; align-items: center; justify-content: space-between;
@@ -81,8 +89,11 @@
 
 .hero--art { position: relative; overflow: hidden; background: linear-gradient(135deg, #3A86D8, #1C5AA6);
   box-shadow: inset 0 3px 0 rgba(255,210,122,.5); }
-.hero--art .lcard__pat { -webkit-mask-image: radial-gradient(circle 150px at 74% 40%, transparent 0 92px, #000 150px);
-  mask-image: radial-gradient(circle 150px at 74% 40%, transparent 0 92px, #000 150px); }
+/* Hole is pinned to the icon's own centre (icon is right:24px, width:128px →
+   centre 88px from the right edge, vertical 40%), so the two stay aligned at any
+   width instead of drifting (a % hole vs. a px-positioned icon). */
+.hero--art .lcard__pat { -webkit-mask-image: radial-gradient(circle 150px at calc(100% - 88px) 40%, transparent 0 92px, #000 150px);
+  mask-image: radial-gradient(circle 150px at calc(100% - 88px) 40%, transparent 0 92px, #000 150px); }
 .hero__wm { position: absolute; right: 24px; top: 40%; width: 128px; height: 128px; color: var(--c);
   opacity: .3; transform: translateY(-50%) rotate(-12deg); pointer-events: none; z-index: 1; }
 .hero__wm svg { display: block; width: 100%; height: 100%; }
@@ -120,8 +131,15 @@
 
 /* Hide any wash/motif during the full-bleed correct/not-quite answer flash —
    the state colour is the design there; a motif over it would fight it. */
-.screen.is-correct .screen__pat, .screen.is-notquite .screen__pat,
-.screen.is-correct .add-pat, .screen.is-notquite .add-pat { display: none; }
+.screen.is-correct .screen__pat, .screen.is-notquite .screen__pat, .screen.is-idk .screen__pat,
+.screen.is-correct .add-pat, .screen.is-notquite .add-pat, .screen.is-idk .add-pat { display: none; }
+
+/* Answer-state background motifs (green starburst / pink wave / light-blue rings).
+   Baked-colour background-image tiles; sit below content via z-index. */
+.state-pat { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.state-pat--correct { background-position: center; background-size: 760px; background-repeat: no-repeat; opacity: .14; }
+.state-pat--notquite { background-size: 220px; background-repeat: repeat; opacity: .22; }
+.state-pat--idk { background-size: 300px; background-repeat: repeat; opacity: .30; }
 
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
 .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;

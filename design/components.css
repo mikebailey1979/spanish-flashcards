@@ -113,6 +113,10 @@
 .answer-block .cheer { margin: 0; }
 .answer-block .prompt-label { opacity: .85; }
 .answer-block .answer { font-size: 30px; font-weight: 800; }
+/* What she entered, under the answer (smaller, quiet). */
+.answered-you { opacity: .72; font-size: 13px; }
+.answered-you__val { font-weight: 700; opacity: 1; }
+.answered-you__val--idk { font-style: italic; font-weight: 600; }
 
 /* ---- Bottom sheet (complements motion.css .sheet/.scrim) ------------------ */
 .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 30; }

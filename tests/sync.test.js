@@ -87,14 +87,35 @@ test("tombstones propagate", async () => {
   assert.notEqual(remoteRow.deletedAt, null, "tombstone reached the remote");
 });
 
-test("a second sync with the returned cursor is a no-op", async () => {
+test("the cursor stabilizes and stops re-pushing once settled", async () => {
   const { store, remote, sync } = setup();
   await store.putDeck(model.createDeck({ ownerId: "a", name: "D" }, T0));
-  const cursor = await sync.sync();
+  const c1 = await sync.sync();                 // pushes the deck (pull ran first, saw nothing)
+  const c2 = await sync.sync(c1);               // pulls our own deck back; pull watermark catches up
   const remoteCountBefore = (await remote.getAll("decks")).length;
-  const cursor2 = await sync.sync(cursor);
-  assert.equal(cursor2, cursor, "cursor does not advance when nothing changed");
-  assert.equal((await remote.getAll("decks")).length, remoteCountBefore);
+  const c3 = await sync.sync(c2);               // nothing left to move
+  assert.deepEqual(c3, c2, "cursor is stable once both directions have settled");
+  assert.equal((await remote.getAll("decks")).length, remoteCountBefore, "no duplicate push");
+});
+
+test("separate pull/push cursors: a newer local push never hides older remote rows", async () => {
+  // Reproduces the cross-device bug: device L pushes a row stamped LATER than an
+  // as-yet-unpulled remote row from device P. A single shared cursor would jump
+  // past P's row and skip it forever; separate cursors must still pull it.
+  const { store, remote, sync } = setup();
+  // P already put an older row on the remote (phone studied at an earlier clock).
+  const pRow = model.createCard({ ownerId: "a", deckId: "d", front: "phone", back: "P" }, T0 + DAY);
+  await remote.put("cards", pRow);
+  // L makes a NEWER local row, then syncs. Its push advances only the push cursor.
+  const lRow = model.createCard({ ownerId: "a", deckId: "d", front: "laptop", back: "L" }, T0 + 2 * DAY);
+  await store.putCard(lRow);
+  const cursor = await sync.sync();
+  assert.ok(await store.adapter.get("cards", pRow.id), "the older remote row was pulled, not skipped");
+  assert.equal((await remote.get("cards", lRow.id)).back, "L", "the newer local row was pushed");
+  // and it converges: once the pull watermark catches up, the cursor is stable
+  assert.ok(await remote.get("cards", pRow.id), "remote still has P's row");
+  const settled = await sync.sync(cursor);
+  assert.deepEqual(settled, await sync.sync(settled), "stable after settle");
 });
 
 test("a full seeded user round-trips to an empty remote and back to a fresh device", async () => {

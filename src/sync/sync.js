@@ -75,17 +75,38 @@
     }
 
     /**
-     * Pull then push, from the same cursor. Returns the advanced cursor (store it
-     * and pass it back next time).
-     * @param {string} [cursor] @returns {Promise<string>}
+     * Normalize a stored cursor into separate pull/push watermarks. Accepts the
+     * new `{pull, push}` shape, a legacy single string (used for both), or
+     * undefined (fresh — EPOCH for both).
+     * @param {{pull?: string, push?: string}|string} [cursor]
+     * @returns {{pull: string, push: string}}
      */
-    async function sync(cursor) {
-      const afterPull = await pull(cursor);
-      const afterPush = await push(cursor);
-      return newer(afterPush, afterPull) ? afterPush : afterPull;
+    function normalize(cursor) {
+      if (cursor && typeof cursor === "object") return { pull: cursor.pull || EPOCH, push: cursor.push || EPOCH };
+      const s = (typeof cursor === "string" && cursor) || EPOCH;
+      return { pull: s, push: s };
     }
 
-    return { pull, push, sync, EPOCH };
+    /**
+     * Pull then push, each from its OWN watermark. The pull watermark tracks only
+     * what we've pulled from the remote; the push watermark tracks only what we've
+     * pushed. Keeping them apart is essential: with a single shared cursor, pushing
+     * a newer *local* row advances the watermark past *remote* rows we haven't
+     * pulled yet (e.g. the other device studied at a slightly earlier wall-clock),
+     * so those remote changes are skipped forever — the cross-device "my laptop is
+     * a day behind my phone" bug. Returns the advanced `{pull, push}` cursor; store
+     * it and pass it back next time.
+     * @param {{pull?: string, push?: string}|string} [cursor]
+     * @returns {Promise<{pull: string, push: string}>}
+     */
+    async function sync(cursor) {
+      const cur = normalize(cursor);
+      const afterPull = await pull(cur.pull);
+      const afterPush = await push(cur.push);
+      return { pull: afterPull, push: afterPush };
+    }
+
+    return { pull, push, sync, normalize, EPOCH };
   }
 
   return { createSync, EPOCH };

@@ -140,10 +140,19 @@
 
   const PALETTE = ["#FFC24B", "#FF8A6B", "#2DC2A0", "#9A8CFF", "#F48FB6", "#5BB8E8", "#86C443", "#F0A54A", "#7FD0C0", "#FF9FB0"];
 
+  // Patterns that radiate from the card's focal point (behind the icon) instead of
+  // tiling. They look right on a small CARD, but as a full-screen tiled WASH they
+  // leave the left/edges bare (the "Unidad 5 pattern stops before the left" bug),
+  // so screenPat picks only from the tiling patterns via tilingPatternIndex.
+  const FOCAL = [20, 21, 23, 24, 43, 46, 49];   // sunburst, radar, concentric, pie, topographic, dotted rings, spiral
+  const TILING = []; for (let i = 0; i < PATTERNS.length; i++) if (FOCAL.indexOf(i) < 0) TILING.push(i);
+
   function keyOf(lesson) { return "" + ((lesson && (lesson.id || lesson.name)) || "lesson"); }
   function accent(lesson) { return PALETTE[hash(keyOf(lesson)) % PALETTE.length]; }
   function iconKey(name) { name = ("" + (name || "")).toLowerCase(); for (let i = 0; i < KW.length; i++) if (KW[i][0].test(name)) return KW[i][1]; return "book"; }
   function patternIndex(lesson) { return hash(keyOf(lesson) + "|pat") % PATTERNS.length; }
+  // Deterministic, but drawn only from the edge-to-edge tiling patterns.
+  function tilingPatternIndex(lesson) { return TILING[hash(keyOf(lesson) + "|pat") % TILING.length]; }
   function iconSvg(key) { return '<svg viewBox="0 0 24 24">' + (ICONS[key] || ICONS.book) + "</svg>"; }
   function patternSvg(index) { const p = PATTERNS[((index % PATTERNS.length) + PATTERNS.length) % PATTERNS.length]; return { name: p[0], opacity: p[1], svg: S(p[2]()) }; }
 
@@ -157,5 +166,5 @@
     };
   }
 
-  return { accent, iconKey, patternIndex, iconSvg, patternSvg, card, PALETTE, PATTERN_COUNT: PATTERNS.length };
+  return { accent, iconKey, patternIndex, tilingPatternIndex, iconSvg, patternSvg, card, PALETTE, PATTERN_COUNT: PATTERNS.length };
 });

@@ -8,7 +8,7 @@
 .screen::before{content:"";position:absolute;inset:-30%;pointer-events:none;
   background:radial-gradient(38% 30% at 30% 26%,var(--drift-a),transparent 70%),radial-gradient(42% 34% at 74% 72%,var(--drift-b),transparent 70%);
   animation:drift var(--m-drift) ease-in-out infinite alternate;will-change:transform}
-.screen.is-correct::before,.screen.is-notquite::before{display:none}
+.screen.is-correct::before,.screen.is-notquite::before,.screen.is-idk::before{display:none}
 @keyframes drift{0%{transform:translate(-4%,-3%) rotate(0) scale(1)}50%{transform:translate(5%,4%) rotate(8deg) scale(1.08)}100%{transform:translate(-2%,6%) rotate(-6deg) scale(1.02)}}
 /* mark wrapper centers glow, pulses and confetti on the mark, not the screen */
 .mark-wrap{position:relative;display:grid;place-items:center}

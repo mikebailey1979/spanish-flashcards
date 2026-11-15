@@ -626,6 +626,51 @@ document.addEventListener("DOMContentLoaded", async () => {
     catch { return SESSION_SIZE; }
   }
 
+  // ---- Endless (∞) practice -------------------------------------------------
+  //  A non-stop session scoped to a set of cards. Each cycle is a fresh weighted-
+  //  random pass: EVERY word circulates once, ordered by weakness so the tricky
+  //  ones surface sooner, and the weakest few get an extra copy so they recur more
+  //  — spaced retrieval, but it stays varied instead of drilling the same word.
+  async function weightedPool(cards) {
+    const out = [];
+    for (const c of cards) { const p = await store.getProgress(ctx.studierId, c.id); out.push({ c, w: weakness(p ? p.srs : null) }); }
+    return out;
+  }
+  // Efraimidis–Spirakis weighted sampling: key = rand^(1/w), sort desc → a random
+  // order biased toward the weaker (trickier) cards, re-rolled every cycle.
+  function weightedShuffle(pool) {
+    return pool.map((x) => ({ c: x.c, k: Math.pow(Math.random() || 1e-9, 1 / Math.max(0.5, x.w)) }))
+      .sort((a, b) => b.k - a.k).map((x) => x.c);
+  }
+  async function buildEndlessQueue(cards) {
+    const pool = await weightedPool(cards);
+    if (!pool.length) return [];
+    const batch = weightedShuffle(pool);
+    // give the weakest handful an extra appearance (dropped in at random spots)
+    const weak = pool.filter((x) => x.w > 12).sort((a, b) => b.w - a.w).slice(0, 5).map((x) => x.c);
+    for (const c of weak) batch.splice(Math.floor(Math.random() * (batch.length + 1)), 0, c);
+    return batch;
+  }
+  async function refillEndless() {
+    const q = await buildEndlessQueue(S.cards);
+    if (q.length > 1 && S.current && q[0].id === S.current.id) q.push(q.shift());  // no instant repeat at the seam
+    S.queue = q; S.idx = 0; S.total = q.length;
+  }
+  async function startEndless(cards, label) {
+    cards = (cards || []).filter(Boolean);
+    const q = await buildEndlessQueue(cards);
+    if (!q.length) return renderAllSet();
+    S = { queue: q, idx: 0, right: 0, total: q.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, autoGrade: null, log: [], endless: true, cards, label: label || null };
+    renderQuestion();
+  }
+  async function startLessonEndless(id) {
+    const l = lessons.find((x) => x.id === id); if (!l) return renderLessons();
+    startEndless(await store.cardsByIds(l.cardIds, ctx.contentOwnerId), l.name);
+  }
+  async function startTrickyEndless() {
+    startEndless(trickyCards(await loadData()), "Tricky words");
+  }
+
   // ---- resume: keep an in-progress session for 24h (board 26) --------------
   const RESUME_KEY = "aliyah.resume";
   function saveResume() {
@@ -646,7 +691,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const map = new Map(cards.map((c) => [c.id, c]));
     const queue = r.ids.map((id) => map.get(id)).filter(Boolean);
     if (!queue.length) { clearResume(); return renderHome(); }
-    S = { queue, idx: Math.min(r.idx, queue.length - 1), right: r.right, total: r.total || queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, autoGrade: null };
+    S = { queue, idx: Math.min(r.idx, queue.length - 1), right: r.right, total: r.total || queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, autoGrade: null, log: [] };
     renderQuestion();
   }
 
@@ -678,25 +723,25 @@ document.addEventListener("DOMContentLoaded", async () => {
       hero = a ? `<div class="hero hero--art" style="--c:${a.color}">
         ${a.patHTML}<span class="hero__wm">${CardArt.iconSvg(a.icon)}</span>
         <div class="hero__inner">
-          <div class="t-caps hero__label">Resume</div>
+          <div class="t-caps hero__label">Jump back in!</div>
           <div class="t-title hero__ttl">${esc(rl ? rl.name : "Your session")}</div>
           <div style="display:flex;align-items:baseline;gap:10px">
             <span class="t-hero hero__num">${left}</span>
             <span class="t-label" style="opacity:.85">left in this session</span>
           </div>
           <div class="progress"><i style="width:${pct}%"></i></div>
-          <button class="btn btn--primary" data-act="resume">Resume</button>
+          <button class="btn btn--primary" data-act="resume">Continue</button>
           <button data-act="new-session" style="background:none;border:0;color:inherit;opacity:.9;font-weight:700;cursor:pointer;padding:var(--s-3)">Start a new session instead</button>
         </div>
       </div>` : `<div class="hero">
-        <div class="t-caps hero__label">Resume</div>
+        <div class="t-caps hero__label">Jump back in!</div>
         <div class="t-title">${esc(rl ? rl.name : "Your session")}</div>
         <div style="display:flex;align-items:baseline;gap:10px">
           <span class="t-hero hero__num">${left}</span>
           <span class="t-label" style="opacity:.8">left in this session</span>
         </div>
         <div class="progress"><i style="width:${pct}%"></i></div>
-        <button class="btn btn--primary" data-act="resume">Resume</button>
+        <button class="btn btn--primary" data-act="resume">Continue</button>
         <button data-act="new-session" style="background:none;border:0;color:inherit;opacity:.85;font-weight:700;cursor:pointer;padding:var(--s-3)">Start a new session instead</button>
       </div>`;
     } else if (due.length) {
@@ -759,7 +804,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // wash matches that lesson's card art everywhere).
   function screenPat(key, color) {
     if (!CardArt) return { style: "", patHTML: "" };
-    const ps = CardArt.patternSvg(CardArt.patternIndex({ id: key }));
+    // Use a TILING pattern only — radial/focal motifs don't fill a full-bleed wash
+    // (they'd stop before the left edge). Cards keep their own (possibly focal) one.
+    const idx = CardArt.tilingPatternIndex ? CardArt.tilingPatternIndex({ id: key }) : CardArt.patternIndex({ id: key });
+    const ps = CardArt.patternSvg(idx);
     const c = color || CardArt.accent({ id: key });
     // The pattern is authored for a 320x92 card; cover-scaling it to a whole
     // screen zooms it ~9x. Instead we TILE it as a CSS mask over a solid accent
@@ -791,6 +839,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${T} ${T}">${g}</svg>`;
     const uri = `url('data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, "%27")}')`;
     return `<span class="add-pat" style="background-image:${uri}"></span>`;
+  }
+  // Full-bleed background motifs for the three answer states. Colours are BAKED
+  // (chosen to read on both the light and dark version of each state's ground),
+  // so these are background-image tiles, not the single-accent mask wash.
+  function statePattern(kind) {
+    const uri = (svg) => `url('data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, "%27")}')`;
+    let svg;
+    if (kind === "correct") {            // radial starburst — white rays, celebratory
+      let rays = "";
+      for (let a = 0; a < 360; a += 15) { const r = a * Math.PI / 180; rays += `<line x1="100" y1="100" x2="${(100 + Math.cos(r) * 150).toFixed(1)}" y2="${(100 + Math.sin(r) * 150).toFixed(1)}"/>`; }
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><g stroke="#ffffff" stroke-width="1.3">${rays}</g></svg>`;
+    } else if (kind === "notquite") {    // gentle repeating rose waves
+      const wave = (y) => `<path d="M0 ${y} q 15 -11 30 0 t 30 0 t 30 0 t 30 0" />`;
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 48"><g stroke="#C94F6D" fill="none" stroke-width="2" stroke-linecap="round">${wave(16)}${wave(36)}</g></svg>`;
+    } else {                             // idk — clean overlapping light-blue rings
+      const rings = [[30, 34, 26], [92, 24, 18], [128, 54, 30], [52, 92, 34], [110, 112, 22], [150, 128, 16], [20, 134, 20], [86, 150, 26]];
+      const c = rings.map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`).join("");
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 170"><g stroke="#BFE0FF" fill="none" stroke-width="2.2">${c}</g></svg>`;
+    }
+    return `<span class="state-pat state-pat--${kind}" style="background-image:${uri(svg)}"></span>`;
   }
   function lessonRow(l, due) {
     if (!CardArt) return `<button class="row" data-act="open-lesson" data-id="${l.id}">
@@ -879,6 +947,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${sections}
       ${tricky ? `<button class="row" data-act="practice-tricky" style="margin-top:var(--s-5)"><span class="row__main"><span class="row__title">${tricky} tricky words</span><span class="row__meta">Practice them in Tricky words</span></span>${icon("chevron", "icon--sm")}</button>` : ""}
       <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}" style="margin-top:var(--s-7)">Study this lesson</button>
+      <button class="btn btn--secondary" data-act="study-lesson-endless" data-id="${l.id}" style="margin-top:var(--s-4)"><span class="inf-glyph">∞</span> Practice on repeat</button>
       ${roleplayOn() ? `<button class="btn btn--secondary" data-act="rp-open" data-id="${l.id}" style="margin-top:var(--s-4)">${icon("chat", "icon--sm")} Practice a pretend chat</button>` : ""}
     </section>${tabbar("lessons")}`);
   }
@@ -908,7 +977,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }).join("");
     const tiles = [[wk.words, "words practiced this week"], [wk.pct + "%", "right on the first try"], [wk.sessions, "study sessions"]]
       .map(([n, t]) => `<div class="hero" style="flex:1;padding:var(--s-6) var(--s-5);gap:4px"><div class="t-title">${n}</div><div class="t-label" style="opacity:.75">${t}</div></div>`).join("");
-    const readyRows = lessons.map((l) => { const p = lessonProgress(l, D); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span></div>`; }).join("");
+    const readyRows = lessons.map((l) => { const p = lessonProgress(l, D); return `<button class="row" data-act="lesson-readiness" data-id="${l.id}"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l.name)}</span><span class="row__bar"><i style="width:${p}%"></i></span></span><span class="row__value" style="font-weight:700;opacity:.85">${p}%</span>${icon("chevron", "icon--sm")}</button>`; }).join("");
     mount(`<section class="screen screen--tabbed"${sp.style}>
       ${sp.patHTML}
       <h1 class="t-h1" style="margin-bottom:var(--s-6)">Progress</h1>
@@ -921,9 +990,38 @@ document.addEventListener("DOMContentLoaded", async () => {
       <button class="row" data-act="practice-tricky" style="margin-top:var(--s-5)">
         <span class="row__main"><span class="t-caps" style="opacity:.75">Tricky words</span><span class="t-title">${tricky} words</span><span class="row__meta">that need another look</span></span>
         <span class="chip" style="background:#fff;color:var(--btn-text)">Practice</span></button>
-      <div class="section-label"><span class="t-caps" style="opacity:.75">Lessons · Progress</span></div>
+      <div class="section-label"><span class="t-caps" style="opacity:.75">Test readiness · by lesson</span></div>
+      <div class="muted" style="margin:-4px 0 var(--s-4)">How ready you are for a test — tap a lesson to see what it means and what to practice.</div>
       <div class="list">${readyRows}</div>
     </section>${tabbar("progress")}`);
+  }
+
+  // Tap a lesson in Progress → explain the "test readiness" number: what it means,
+  // how it's worked out, what to practice next, and a gentle retry CTA.
+  async function openReadiness(lessonId) {
+    const l = lessons.find((x) => x.id === lessonId); if (!l) return;
+    const D = await loadData();
+    const cards = await store.cardsByIds(l.cardIds, ctx.contentOwnerId);
+    const pct = lessonProgress(l, D);
+    const started = (c) => (D.byCard.get(c.id) || []).length > 0;
+    const ready = cards.filter((c) => isReady(c.id, D));
+    const practicing = cards.filter((c) => started(c) && !isReady(c.id, D));
+    const notStarted = cards.filter((c) => !started(c));
+    const needWork = practicing.concat(notStarted);   // not yet test-ready
+    const sample = needWork.slice(0, 6).map((c) => esc(c.front)).join(", ");
+    const verdict = pct >= 85 ? "Nearly test-ready." : pct >= 50 ? "Good start — keep going." : "Early days — lots to practice.";
+    const stat = (n, label) => `<span style="flex:1"><div class="t-title">${n}</div><div class="t-label" style="opacity:.7">${label}</div></span>`;
+    sheet(`<div class="sheet__title">Test readiness · ${esc(l.name)}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:var(--s-3)">
+        <span class="t-hero" style="font-size:52px;line-height:1">${pct}%</span>
+        <span class="t-label" style="opacity:.85">${verdict}</span></div>
+      <div class="sheet__text">This shows how ready you are for a <b>test</b> on this lesson — not how many words you've seen. A word only counts once you've answered it right <b>twice in a row</b>, on different tries. A word you've started but not nailed counts as half; a word you haven't tried counts as zero.</div>
+      <div class="row" style="cursor:default;justify-content:space-around;text-align:center;margin:var(--s-2) 0 var(--s-4)">
+        ${stat(ready.length, "ready")}${stat(practicing.length, "practicing")}${stat(notStarted.length, "not started")}</div>
+      ${needWork.length ? `<div class="sheet__text"><b>Work on next:</b> ${sample}${needWork.length > 6 ? ` <span style="opacity:.7">+${needWork.length - 6} more</span>` : ""}.</div>` : `<div class="sheet__text">Every word here is test-ready — great work! 🎉</div>`}
+      <div class="sheet__text" style="opacity:.82">To raise it, practice this lesson a few times <b>across different days</b> — spacing it out is what makes it stick. The tricky words come back more often on their own.</div>
+      <button class="btn btn--primary" data-act="study-lesson" data-id="${l.id}">${pct >= 100 ? "Practice again" : "Retry this lesson"}</button>
+      <button class="btn btn--secondary" data-act="open-lesson" data-id="${l.id}">See the words</button>`);
   }
 
   async function renderTricky() {
@@ -943,12 +1041,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     const byLesson = {};
     for (const c of tc) { const l = cardLesson[c.id]; if (l) byLesson[l.id] = (byLesson[l.id] || 0) + 1; }
     const rows = Object.entries(byLesson).map(([lid, n]) => { const l = lessons.find((x) => x.id === lid); return `<div class="row" style="cursor:default"><span class="row__main"><span class="row__title" style="-webkit-line-clamp:1">${esc(l ? l.name : "")}</span></span><span class="pill">${n}</span></div>`; }).join("");
+    // Tricky words has no single lesson identity, so give it a fixed one: the warm
+    // flame accent + the Asanoha (hemp-leaf) motif — a traditional "growth/resilience"
+    // pattern that fits "words to master" and stays energetic without being busy.
+    const tp = CardArt ? CardArt.patternSvg(10) : null;   // 10 = Asanoha
+    const heroArt = tp
+      ? `<div class="hero hero--art" style="--c:var(--accent)">
+          <span class="lcard__pat" style="opacity:${tp.opacity}">${tp.svg}</span>
+          <span class="hero__wm">${CardArt.iconSvg("school")}</span>
+          <div class="hero__inner">
+            <div class="t-hero hero__num" style="font-size:56px">${tc.length}</div>
+            <div class="t-label" style="opacity:.9">words that need another look</div>
+            <div class="muted" style="margin-top:4px">This group fills and empties by itself. A word leaves once you get it right 3 times in a row.</div>
+          </div></div>`
+      : `<div class="hero"><div class="t-hero" style="font-size:56px">${tc.length}</div><div class="t-label" style="opacity:.85">words that need another look</div>
+          <div class="muted" style="margin-top:4px">This group fills and empties by itself. A word leaves once you get it right 3 times in a row.</div></div>`;
     mount(`<section class="screen screen--tabbed"${sp.style}>${sp.patHTML}${head}
-      <div class="hero"><div class="t-hero" style="font-size:56px">${tc.length}</div><div class="t-label" style="opacity:.85">words that need another look</div>
-        <div class="muted" style="margin-top:4px">This group fills and empties by itself. A word leaves once you get it right 3 times in a row.</div></div>
+      ${heroArt}
       <div class="section-label"><span class="t-caps" style="opacity:.75">From your lessons</span></div>
       <div class="list">${rows}</div>
       <button class="btn btn--primary" data-act="study-tricky" style="margin-top:var(--s-7)">Practice tricky words</button>
+      <button class="btn btn--secondary" data-act="study-tricky-endless" style="margin-top:var(--s-4)"><span class="inf-glyph">∞</span> Practice on repeat</button>
     </section>${tabbar("home")}`);
   }
 
@@ -956,7 +1069,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let S = null;  // { queue, idx, right, total, current, answered, res, grade, idk, rating }
   async function startSession(ls) { startWith(await buildQueue(ls, sessionSize())); }
   function startWith(queue) {
-    S = { queue, idx: 0, right: 0, total: queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null };
+    S = { queue, idx: 0, right: 0, total: queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, log: [] };
     if (!queue.length) return renderAllSet();
     renderQuestion();
   }
@@ -964,12 +1077,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   function studyHead(extraClass = "") {
     const c = S.current, prog = S.total ? ((S.idx) / S.total) * 100 : 0;
     const l = cardLesson[c.id];
+    const title = (S.endless && S.label) ? S.label : (l ? l.name : "");
     return `<div class="study-head ${extraClass}">
-      <div class="progress"><i style="width:${prog}%"></i></div>
+      ${S.endless ? "" : `<div class="progress"><i style="width:${prog}%"></i></div>`}
       <div class="study-head__row">
         <button class="study-head__exit" data-act="exit-study">${icon("close")}</button>
-        <span class="study-head__lesson">${esc(l ? l.name : "")}</span>
-        <span class="study-head__count">${S.idx + 1} / ${S.total}</span>
+        <span class="study-head__lesson">${esc(title)}${S.endless ? " · practice" : ""}</span>
+        ${S.endless
+          ? `<span class="study-head__count study-head__count--inf" aria-label="Endless practice">∞</span>`
+          : `<span class="study-head__count">${S.idx + 1} / ${S.total}</span>`}
       </div>
     </div>`;
   }
@@ -980,7 +1096,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     S.dir = pickDir(); S.mode = pickMode();
     S.speak = { phase: "ready", heard: "", note: "", rec: null };
     renderCard();
-    saveResume();   // persist in-progress session so she can resume within 24h
+    if (!S.endless) saveResume();   // persist a finite session so she can resume within 24h
   }
   function renderCard() {       // re-renderable (speak phases call this; mode stays)
     const c = S.current;
@@ -1138,7 +1254,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderResult() {
     const c = S.current, correct = S.res.correct && !S.idk, near = !S.idk && S.res.near;
-    const stateClass = (correct || S.idk) ? (correct ? "is-correct" : "") : "is-notquite";
+    const stateClass = correct ? "is-correct" : S.idk ? "is-idk" : "is-notquite";
+    const statePat = statePattern(correct ? "correct" : S.idk ? "idk" : "notquite");
     let markIcon, cheer, sub, chip, link, nextLabel;
     if (correct) {
       markIcon = `<i class="mark__icon icon--check"></i>`;
@@ -1152,22 +1269,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else if (near) {   // strict near-miss — the form is the teaching point (board 27)
       markIcon = `<i class="mark__icon icon--close"></i>`;
       cheer = "Almost there."; sub = "";
-      chip = `<span class="chip">${esc(S.res.fix)}</span>${S.typed ? `<span class="chip">You wrote: ${esc(S.typed)}</span>` : ""}`;
+      chip = `<span class="chip">${esc(S.res.fix)}</span>`;
       link = ""; nextLabel = "Next";
     } else {
       markIcon = `<i class="mark__icon icon--close"></i>`;
       cheer = "¡Ánimo! You've got this."; sub = "";
-      chip = `<span class="chip">We'll practice it again</span>${(S.mode === "choice" && S.typed) ? `<span class="chip">You picked: ${esc(S.typed)}</span>` : ""}`;
+      chip = `<span class="chip">We'll practice it again</span>`;
       link = `<div class="linkrow"><a data-act="adjudicate">That should've counted</a> · <a data-act="explain">Explain</a></div>`;
       nextLabel = "Next";
     }
-    const toolRow = S.idk ? "" : `<div class="toolrow" style="margin-bottom:var(--s-5)">
+    // What she entered vs. the answer — small text under the answer. The "I don't
+    // know" flow reports "I'm not sure" as the answer she gave.
+    const youSaid = S.idk ? "I'm not sure" : (S.typed != null && String(S.typed).trim() !== "" ? S.typed : null);
+    const answeredLine = youSaid != null
+      ? `<div class="answered-you t-label">You answered: <span class="answered-you__val${S.idk ? " answered-you__val--idk" : ""}">${esc(youSaid)}</span></div>`
+      : "";
+    // Hear-it / Say-it / Explain are now offered on the "I don't know" screen too
+    // (only the self-rating is dropped there, since the grade is already "again").
+    const toolRow = `<div class="toolrow" style="margin-bottom:var(--s-5)">
       <button class="toolbtn toolbtn--icon" data-act="speak" data-say="${esc(c.front)}" aria-label="Hear it in Spanish">${icon("speaker", "icon--sm")}</button>
       <button class="toolbtn toolbtn--icon" data-act="pronounce" data-say="${esc(c.front)}" aria-label="Say it">${icon("mic", "icon--sm")}</button>
-      <button class="toolbtn" data-act="open-rating">${icon("face-good", "icon--sm")} How was that?</button>
+      ${S.idk ? "" : `<button class="toolbtn" data-act="open-rating">${icon("face-good", "icon--sm")} How was that?</button>`}
       <button class="toolbtn" data-act="explain">Explain</button>
       <button class="toolbtn" data-act="example">Example</button></div>`;
     mount(`<section class="screen study ${stateClass}">
+      ${statePat}
       ${studyHead()}
       <div class="result">
         <div class="mark-wrap"><div class="mark">${markIcon}</div>${correct ? '<span class="pulse"></span><span class="pulse b"></span>' : ""}</div>
@@ -1175,6 +1301,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="t-title cheer">${esc(cheer)}</div>${sub}
           <div class="t-caps prompt-label">${esc(promptOf(c, S.dir))}</div>
           <div class="answer">${esc(answerOf(c, S.dir))}</div>
+          ${answeredLine}
           ${chip}
         </div>
         ${link}
@@ -1188,9 +1315,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function gradeNext() {
     // S.grade is the auto grade, possibly amended by her rating (see rate()).
     await store.review(ctx, S.current, S.grade, S.mode || "type", now(), null, { autoGrade: S.autoGrade, rating: S.rating });
-    if (S.res && S.res.correct && !S.idk) S.right++;
+    const wasRight = !!(S.res && S.res.correct && !S.idk);
+    if (wasRight) S.right++;
+    // remember each answer so the end-of-lesson screen can spot patterns
+    (S.log || (S.log = [])).push({ id: S.current.id, front: S.current.front, dir: S.dir, mode: S.mode, cat: S.current.category || null, correct: wasRight, idk: !!S.idk });
     S.idx++;
-    if (S.idx >= S.queue.length) { clearResume(); return renderDone(); }
+    if (S.idx >= S.queue.length) {
+      if (S.endless) { await refillEndless(); return renderQuestion(); }   // never ends — just reshuffles
+      clearResume(); return renderDone();
+    }
     renderQuestion();
   }
 
@@ -1590,7 +1723,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       </div>
       <div class="section-label"><span class="t-caps" style="opacity:.75">Your data</span></div>
       <div class="list">
-        ${settingRow("Sync", "All changes saved", "your-data")}
+        ${settingRow("Sync", syncStatus().meta, "your-data")}
         ${settingRow("Export my data", "Save everything to a file", "export-data")}
         ${settingRow("Recently deleted", "Restore lessons and words within 7 days", "recently-deleted")}
       </div>
@@ -1626,7 +1759,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         <span class="study-head__lesson" style="font-size:var(--t-title);font-weight:800">Your data</span>
       </div>
       <div class="section-label"><span class="t-caps" style="opacity:.75">Sync</span></div>
-      <div class="banner"><span>All changes saved</span><span class="t-label" style="color:var(--sheet-muted)">${_sync ? "Backed up to your account and synced across your devices." : "Saved on this device."}</span></div>
+      <div class="banner"><span>${_sync ? "Backed up to your account" : "Saved on this device"}</span><span class="t-label" style="color:var(--sheet-muted)">${esc(syncStatus().meta)}</span></div>
+      ${_sync ? `<button class="btn btn--secondary" data-act="sync-now" style="margin-top:var(--s-4)"${_syncing ? " disabled" : ""}>${_syncing ? "Syncing…" : "Sync now"}</button>` : ""}
       <div class="section-label" style="margin-top:var(--s-7)"><span class="t-caps" style="opacity:.75">Export my data</span></div>
       <div class="muted" style="margin-bottom:var(--s-5)">Download everything you have in the app — lessons, words and progress — as one file. The file is made on your phone. Nothing is sent to anyone.</div>
       <button class="btn btn--primary" data-act="export-data">Export</button>
@@ -2328,8 +2462,49 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 1500));
   }
 
+  // Look at the just-finished session for patterns worth a gentle nudge. Returns a
+  // short headline + up to a couple of specific tips (empty when nothing stands out).
+  function lessonTips(log) {
+    log = log || [];
+    const misses = log.filter((e) => !e.correct);
+    if (log.length < 3 || !misses.length) return null;
+    const tips = [];
+    const dirName = { "es-en": "Spanish → English", "en-es": "English → Spanish" };
+    // Direction: is one clearly harder than the other today?
+    const dir = { "es-en": [0, 0], "en-es": [0, 0] };   // [miss, total]
+    for (const e of log) { const d = dir[e.dir]; if (d) { d[1]++; if (!e.correct) d[0]++; } }
+    let worstDir = null, worstRate = 0;
+    for (const k of Object.keys(dir)) {
+      const [m, t] = dir[k]; if (t >= 2) { const r = m / t; if (r > worstRate) { worstRate = r; worstDir = k; } }
+    }
+    const other = worstDir === "es-en" ? "en-es" : "es-en";
+    if (worstDir && worstRate >= 0.5 && dir[worstDir][0] >= 2 && (dir[other][1] < 2 || worstRate >= 2 * (dir[other][0] / Math.max(1, dir[other][1]))))
+      tips.push(`${dirName[worstDir]} was the tougher direction — try a round that way.`);
+    // Category: did the misses cluster in one section?
+    const catMiss = {}; for (const e of misses) if (e.cat) catMiss[e.cat] = (catMiss[e.cat] || 0) + 1;
+    const topCat = Object.entries(catMiss).sort((a, b) => b[1] - a[1])[0];
+    if (topCat && topCat[1] >= 2 && topCat[1] >= misses.length / 2)
+      tips.push(`Most of the slips were in <b>${esc(topCat[0])}</b> — worth another look.`);
+    // Always: name a few specific words to revisit.
+    const words = [...new Set(misses.map((e) => e.front))].slice(0, 4).map(esc).join(", ");
+    const headline = misses.length === 1 ? "One word to revisit" : `${misses.length} words to revisit`;
+    return { headline, words, tips: tips.slice(0, 2) };
+  }
+  function studyAgain() {
+    if (!S || !S.log) return renderHome();
+    const miss = new Set(S.log.filter((e) => !e.correct).map((e) => e.id));
+    const cards = (S.queue || []).filter((c) => miss.has(c.id));
+    if (!cards.length) return renderHome();
+    startWith(cards);
+  }
   function renderDone() {
     const pct = S.total ? Math.round((S.right / S.total) * 100) : 0;
+    const t = lessonTips(S.log);
+    const tipsHTML = t ? `<div class="done-tips">
+      <div class="t-caps" style="opacity:.8">${t.headline}</div>
+      <div class="done-tips__words">${t.words}</div>
+      ${t.tips.map((x) => `<div class="done-tips__tip">${x}</div>`).join("")}
+    </div>` : "";
     mount(`<section class="screen study is-correct">
       <div class="study-head"><div class="progress"><i style="width:100%"></i></div></div>
       <div class="done">
@@ -2337,7 +2512,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="t-hero done__num">${S.right}<span style="opacity:.6">/${S.total}</span></div>
         <div class="t-title">¡Qué bien, ${esc(user.displayName)}!</div>
         <div class="muted">${pct}% right</div>
+        ${tipsHTML}
       </div>
+      ${t ? `<button class="btn btn--secondary" data-act="study-again">Practice these again</button>` : ""}
       <button class="btn btn--primary" data-act="home">Done</button>
     </section>`);
     launchConfetti();
@@ -2497,8 +2674,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "cap-retake") { if (capture) capture.mode = null; renderCapture(); }
     else if (act === "cap-add-manual") { clearCapture(); renderLessons(); }
     else if (act === "cap-skip-bad") { if (capture) { const bad = (t.dataset.bad || "").split(",").map(Number); capture.pages = capture.pages.filter((p, i) => !bad.includes(i + 1)); capture.mode = null; renderReading(); } }
+    else if (act === "lesson-readiness") openReadiness(id);
+    else if (act === "study-again") studyAgain();
     else if (act === "practice-tricky") renderTricky();
     else if (act === "study-tricky") startTricky();
+    else if (act === "study-lesson-endless") startLessonEndless(id);
+    else if (act === "study-tricky-endless") startTrickyEndless();
     else if (act === "idk") idk();
     else if (act === "pick-option") chooseAnswer(t.dataset.val);
     else if (act === "speak-start") speakStart();
@@ -2558,6 +2739,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (act === "pick-open") openPicker(t.dataset.kind);
     else if (act === "pick-set") pickSet(t.dataset.kind, t.dataset.val);
     else if (act === "your-data") renderYourData();
+    else if (act === "sync-now") syncNow();
     else if (act === "export-data") doExport();
     else if (act === "sign-out") doSignOut();
     else if (act === "delete-account") openDeleteAccount();
@@ -2644,18 +2826,58 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ---- account binding + sync (prod) ---------------------------------------
   let _sync = null, _activated = null, _demoReady = false, _syncing = false, _syncTimer = null;
   const syncCursorKey = (uid) => "aliyah.synccursor:" + uid;
+  // The sync cursor is now {pull, push} (separate watermarks — see sync.js). Old
+  // builds stored a single string; read either and let sync.normalize cope.
+  function readCursor(k) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw) return undefined;
+      if (raw[0] === "{") return JSON.parse(raw);
+      return { pull: raw, push: raw };          // migrate a legacy single-string cursor
+    } catch { return undefined; }
+  }
+  let _lastSyncAt = 0, _syncOk = false;
   function scheduleSync() { if (!_sync) return; clearTimeout(_syncTimer); _syncTimer = setTimeout(runSync, 1500); }
   async function runSync() {
     if (!_sync || !user || _syncing) return;
     _syncing = true;
     const k = syncCursorKey(user.id);
     try {
-      let cur = localStorage.getItem(k) || undefined;
-      cur = await _sync.sync(cur);
-      try { if (cur) localStorage.setItem(k, cur); } catch {}
+      const cur = await _sync.sync(readCursor(k));
+      try { localStorage.setItem(k, JSON.stringify(cur)); } catch {}
+      _lastSyncAt = Date.now(); _syncOk = true;
+      try { localStorage.setItem("aliyah.lastsync:" + user.id, String(_lastSyncAt)); } catch {}
       await _recache();
-    } catch (e) { console.warn("sync deferred (offline?):", e && e.message); }
+      // refresh the live Sync status if it's on screen
+      if (currentView && currentView.v === "me") renderMe();
+      else if (currentView && currentView.v === "your-data") renderYourData();
+    } catch (e) { _syncOk = false; console.warn("sync deferred (offline?):", e && e.message); }
     finally { _syncing = false; }
+  }
+  // Honest, human sync status — so you can tell at a glance whether THIS device is
+  // actually syncing (vs. quietly running on-device only), and when it last did.
+  function lastSyncAt() { return _lastSyncAt || (user && +(localStorage.getItem("aliyah.lastsync:" + user.id)) || 0); }
+  function relTime(ms) {
+    if (!ms) return "";
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 45) return "just now";
+    if (s < 5400) return Math.max(1, Math.round(s / 60)) + " min ago";
+    const h = Math.round(s / 3600);
+    if (h < 36) return h + (h === 1 ? " hour ago" : " hours ago");
+    return Math.round(h / 24) + " days ago";
+  }
+  function syncStatus() {
+    if (!_sync) return { meta: "This device only — not syncing", on: false };
+    const last = lastSyncAt();
+    if (_syncing) return { meta: "Syncing…", on: true };
+    if (!last) return { meta: "Signed in — not synced yet", on: true };
+    if (!_syncOk) return { meta: "Can't reach the server — will retry", on: true };
+    return { meta: "Synced across your devices · " + relTime(last), on: true };
+  }
+  async function syncNow() {
+    if (!_sync) return;
+    await runSync();
+    if (currentView && currentView.v === "your-data") renderYourData();
   }
 
   // The local demo account — used only when no backend is configured.
@@ -2694,8 +2916,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     // then seed starter content only if this account still has none.
     const k = syncCursorKey(user.id);
     try {
-      let cur = localStorage.getItem(k) || undefined;
-      if (_sync) { cur = await _sync.pull(cur); try { if (cur) localStorage.setItem(k, cur); } catch {} }
+      if (_sync) {
+        const cur = _sync.normalize(readCursor(k));
+        const afterPull = await _sync.pull(cur.pull);
+        // keep the existing push watermark (EPOCH on a fresh device, so the next
+        // scheduled sync uploads the seed + any local history once).
+        try { localStorage.setItem(k, JSON.stringify({ pull: afterPull, push: cur.push })); } catch {}
+      }
     } catch (e) { console.warn("initial pull deferred (offline?):", e && e.message); }
     await seedUser(store, user.id, now());
     await _recache();
