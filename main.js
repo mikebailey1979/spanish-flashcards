@@ -782,7 +782,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const trickyRow = tpat
       ? `<button class="lcard" data-act="practice-tricky" style="--c:var(--accent);margin-top:var(--s-4)">
           <span class="lcard__pat" style="opacity:${tpat.opacity}">${tpat.svg}</span>
-          <span class="lcard__wm">${CardArt.iconSvg("school")}</span>
+          <span class="lcard__wm">${CardArt.iconSvg("target")}</span>
           <span class="lcard__main"><span class="lcard__title">Practice tricky words</span>
             <span class="lcard__meta">The ones that need another look</span></span>
           ${tricky ? `<span class="lcard__pill">${tricky}</span>` : ""}</button>`
@@ -869,6 +869,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 170"><g stroke="#BFE0FF" fill="none" stroke-width="2.2">${c}</g></svg>`;
     }
     return `<span class="state-pat state-pat--${kind}" style="background-image:${uri(svg)}"></span>`;
+  }
+  // The correct-answer starburst, centered BEHIND the checkmark (lives in .mark-wrap)
+  // and faded gently outward by a radial mask (never to zero). See .mark-burst in CSS.
+  function markBurstHTML() {
+    let rays = "";
+    for (let a = 0; a < 360; a += 15) { const r = a * Math.PI / 180; rays += `<line x1="100" y1="100" x2="${(100 + Math.cos(r) * 150).toFixed(1)}" y2="${(100 + Math.sin(r) * 150).toFixed(1)}"/>`; }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><g stroke="#ffffff" stroke-width="1.1">${rays}</g></svg>`;
+    const uri = `url('data:image/svg+xml,${encodeURIComponent(svg).replace(/'/g, "%27")}')`;
+    return `<span class="mark-burst" style="background-image:${uri}"></span>`;
   }
   function lessonRow(l, due) {
     if (!CardArt) return `<button class="row" data-act="open-lesson" data-id="${l.id}">
@@ -1065,7 +1074,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const heroArt = tp
       ? `<div class="hero hero--art" style="--c:var(--accent)">
           <span class="lcard__pat" style="opacity:${tp.opacity}">${tp.svg}</span>
-          <span class="hero__wm">${CardArt.iconSvg("school")}</span>
+          <span class="hero__wm">${CardArt.iconSvg("target")}</span>
           <div class="hero__inner">
             <div class="t-hero hero__num" style="font-size:56px">${tc.length}</div>
             <div class="t-label" style="opacity:.9">words that need another look</div>
@@ -1272,7 +1281,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   function renderResult() {
     const c = S.current, correct = S.res.correct && !S.idk, near = !S.idk && S.res.near;
     const stateClass = correct ? "is-correct" : S.idk ? "is-idk" : "is-notquite";
-    const statePat = statePattern(correct ? "correct" : S.idk ? "idk" : "notquite");
+    // Correct uses a mark-centered burst (below); notquite/idk use the full-bleed wash.
+    const statePat = correct ? "" : statePattern(S.idk ? "idk" : "notquite");
     let markIcon, cheer, sub, chip, link, nextLabel;
     if (correct) {
       markIcon = `<i class="mark__icon icon--check"></i>`;
@@ -1313,7 +1323,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${statePat}
       ${studyHead()}
       <div class="result">
-        <div class="mark-wrap"><div class="mark">${markIcon}</div>${correct ? '<span class="pulse"></span><span class="pulse b"></span>' : ""}</div>
+        <div class="mark-wrap">${correct ? markBurstHTML() : ""}<div class="mark">${markIcon}</div>${correct ? '<span class="pulse"></span><span class="pulse b"></span>' : (!S.idk ? '<span class="pulse"></span>' : "")}</div>
         <div class="answer-block">
           <div class="t-title cheer">${esc(cheer)}</div>${sub}
           <div class="t-caps prompt-label">${esc(promptOf(c, S.dir))}</div>

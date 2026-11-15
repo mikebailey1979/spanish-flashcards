@@ -23,6 +23,14 @@
 .is-notquite .pulse{background:radial-gradient(closest-side,var(--glow-no),transparent);animation:pulse-no var(--m-pulse-no) ease-out 1 both}
 @keyframes pulse-ok{0%{transform:scale(.5);opacity:.9}100%{transform:scale(9);opacity:0}}
 @keyframes pulse-no{0%{transform:scale(.5);opacity:.9}100%{transform:scale(9);opacity:0}}
+/* Correct-answer starburst, centered on the mark, brightest behind the checkmark and
+   fading gently outward (never to 0). Clipped to the screen by .screen overflow. */
+.mark-burst{position:absolute;left:50%;top:50%;width:1500px;height:1500px;margin:-750px 0 0 -750px;
+  z-index:-1;pointer-events:none;background:center/contain no-repeat;opacity:.2;
+  -webkit-mask-image:radial-gradient(circle,#000 6%,rgba(0,0,0,.4) 60%,rgba(0,0,0,.3) 100%);
+  mask-image:radial-gradient(circle,#000 6%,rgba(0,0,0,.4) 60%,rgba(0,0,0,.3) 100%);
+  animation:burst-in var(--m-pop) ease-out both}
+@keyframes burst-in{0%{opacity:0;transform:scale(.6)}100%{opacity:.2;transform:scale(1)}}
 /* confetti: pieces burst radially OUTWARD from the mark, once. JS sets --dx/--dy (radial) and --rot; colors from --confetti-1..4 */
 .confetti{position:absolute;left:50%;top:50%;width:9px;height:14px;border-radius:2px;pointer-events:none;
   animation:confetti var(--m-confetti) var(--ease-confetti) both}

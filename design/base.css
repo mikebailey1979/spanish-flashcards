@@ -3,7 +3,9 @@
    and type utilities. Layout is fluid; the content column stops at --col-max. */
 
 *, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; }
+/* overscroll-behavior:none stops the iOS rubber-band bounce that otherwise reveals
+   the blue ground as top/bottom "letterbox" bands behind a colored answer screen. */
+html, body { height: 100%; overscroll-behavior: none; }
 body {
   margin: 0;
   font-family: var(--font);

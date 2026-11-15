@@ -145,7 +145,7 @@
     [/breakfast|desayuno/, "croissant"],
     [/\blunch\b|almuerzo/, "sandwich"],
     [/\bdinner\b|\bcena\b|supper/, "plate"],
-    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|restaurant|snack|grocery|supermerc/, ["vegetarian-food", "noodles", "natural-food", "serving-food", "street-food", "dish", "organic-food"]],
+    [/\bfood\b|comida|\beat\b|comer|\bmeal\b|restaurant|snack|grocery|supermerc/, ["vegetarian-food", "noodles", "natural-food", "serving-food", "street-food", "dish", "organic-food", "soup", "cooking-pot", "restaurant-01", "dish-01"]],
     // animals & nature
     [/\bcat\b|\bgato\b|kitten|gatito/, "cat"],
     [/\bbird\b|p[aá]jaro|\bave\b/, "bird"],

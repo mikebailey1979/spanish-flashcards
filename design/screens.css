@@ -143,7 +143,7 @@
 .state-pat { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .state-pat--correct { background-position: center; background-size: 760px; background-repeat: no-repeat; opacity: .14; }
 .state-pat--notquite { background-size: 220px; background-repeat: repeat; opacity: .22; }
-.state-pat--idk { background-size: 300px; background-repeat: repeat; opacity: .30; }
+.state-pat--idk { background-size: 300px; background-repeat: repeat; opacity: .19; }
 
 /* ---- Generic placeholder (Progress/Me until later phases) ----------------- */
 .placeholder { flex: 1; display: flex; flex-direction: column; align-items: center;
