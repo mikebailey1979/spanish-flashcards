@@ -88,6 +88,7 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
   .filters button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; }
   .c { display:flex; gap:12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+  .c[hidden] { display:none !important; }
   .c[data-via="fallback"] { border-color:#ffd3ad; background:#fff8f1; }
   .ic { flex:0 0 42px; height:42px; display:grid; place-items:center; color:var(--icon); }
   .ic svg { width:40px; height:40px; } .meta { min-width:0; }
