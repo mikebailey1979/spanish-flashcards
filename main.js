@@ -244,25 +244,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const SPIN = `<span style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>`;
   function pronSupported() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
   function pronConsent() { try { return localStorage.getItem("aliyah.pron.consent") === "1"; } catch { return false; } }
-  // Hold ONE mic stream for the study session so iOS keeps the permission "warm" —
-  // the speech SDK's per-record getUserMedia then doesn't re-prompt each time. The
-  // stream is released when she leaves study or backgrounds the app (setView /
-  // markBg), so the mic indicator doesn't linger. (iOS still asks once per app
-  // launch — a PWA can't persist the grant across launches.)
-  let _micStream = null, _micPromise = null;
-  function warmMic() {
-    if (_micStream && _micStream.active) return Promise.resolve(_micStream);
-    if (_micPromise) return _micPromise;
-    if (!pronSupported()) return Promise.reject(new Error("no mic"));
-    _micPromise = navigator.mediaDevices.getUserMedia({ audio: true })
-      .then((s) => { _micStream = s; _micPromise = null; return s; })
-      .catch((e) => { _micPromise = null; throw e; });
-    return _micPromise;
-  }
-  function releaseMic() {
-    if (_micStream) { try { _micStream.getTracks().forEach((t) => t.stop()); } catch {} }
-    _micStream = null; _micPromise = null;
-  }
   function loadSpeechSdk() {
     if (self.SpeechSDK) return Promise.resolve(self.SpeechSDK);
     return new Promise((resolve, reject) => {
@@ -322,7 +303,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       <button class="btn btn--secondary" data-act="close-sheet">Close</button>`);
   }
   async function doPronRecord(word) {
-    warmMic().catch(() => {});   // keep the permission warm (in the tap gesture) so re-records don't re-prompt
     const body = document.getElementById("pron-body");
     if (body) body.innerHTML = `${SPIN} <span style="margin-left:8px">Listening… say “${esc(word)}”</span>`;
     let scores = null;
@@ -1287,7 +1267,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     return result.text || "";
   }
   async function speakStart() {
-    warmMic().catch(() => {});   // keep the permission warm (in the tap gesture) so re-records don't re-prompt
     // Prefer Azure STT when the backend is on (works on iOS). The browser
     //  SpeechRecognition below is the local/offline fallback only.
     if (aiReady()) {
@@ -3078,9 +3057,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const BG_STUDY_KEY = "aliyah.bgStudyAt";
   const BG_VIEW_KEY = "aliyah.bgView";
   let currentView = { v: "home" };
-  function setView(v, id) { releaseMic(); currentView = { v, id }; }   // leaving study → drop the mic; called by top-level screens
+  function setView(v, id) { currentView = { v, id }; }   // called by the top-level screens
   function markBg() {
-    releaseMic();                                         // backgrounding → drop the mic so the indicator doesn't linger
     if (S && S.queue && S.queue.length && document.querySelector('[data-act="exit-study"]')) {
       saveResume();
       try { localStorage.setItem(BG_STUDY_KEY, String(Date.now())); } catch {}
