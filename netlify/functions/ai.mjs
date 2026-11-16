@@ -196,7 +196,7 @@ async function ttsAudio(text, lang) {
 // Pronunciation (R2): Claude turns the Azure scores into one warm, kid-friendly tip.
 async function coachPronunciation(word, scores) {
   const s = scores || {};
-  const prompt = `A young Spanish student said the word "${word}". Her pronunciation scores (0-100): overall ${Math.round(s.pronunciation || 0)}, accuracy ${Math.round(s.accuracy || 0)}${s.worstPhoneme ? `, weakest sound "${s.worstPhoneme}"` : ""}. In 1-2 short, warm, encouraging sentences, give ONE specific, kid-friendly tip to improve — or just praise her if it's already great. No scores, no lists, no markdown; speak to her directly.`;
+  const prompt = `A young ENGLISH-speaking student learning Spanish said the Spanish word "${word}". Her pronunciation scores (0-100): overall ${Math.round(s.pronunciation || 0)}, accuracy ${Math.round(s.accuracy || 0)}${s.worstPhoneme ? `, weakest sound "${s.worstPhoneme}"` : ""}. In 1-2 short, warm, encouraging sentences, give ONE specific, kid-friendly tip to improve — or just praise her if it's already great. Write the reply in ENGLISH (she is an English speaker); you may sprinkle in a Spanish word or two for warmth (e.g. "¡Muy bien!"), but the tip itself must be in English. No scores, no lists, no markdown; speak to her directly.`;
   const client = new Anthropic();
   const resp = await client.messages.create({ model: "claude-sonnet-5-5", max_tokens: 200, messages: [{ role: "user", content: prompt }] });
   return { text: resp.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim() };
