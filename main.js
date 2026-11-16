@@ -710,7 +710,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const RESUME_KEY = "aliyah.resume";
   function saveResume() {
     if (!S || !S.queue.length) return;
-    try { localStorage.setItem(RESUME_KEY, JSON.stringify({ ids: S.queue.map((c) => c.id), idx: S.idx, right: S.right, total: S.total, dir: S.dir, mode: S.mode, at: Date.now() })); } catch {}
+    try { localStorage.setItem(RESUME_KEY, JSON.stringify({ ids: S.queue.map((c) => c.id), idx: S.idx, right: S.right, total: S.total, dir: S.dir, mode: S.mode, options: S.options, at: Date.now() })); } catch {}
   }
   function clearResume() { try { localStorage.removeItem(RESUME_KEY); } catch {} }
   function getResume() {
@@ -726,7 +726,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const map = new Map(cards.map((c) => [c.id, c]));
     const queue = r.ids.map((id) => map.get(id)).filter(Boolean);
     if (!queue.length) { clearResume(); return renderHome(); }
-    S = { queue, idx: Math.min(r.idx, queue.length - 1), right: r.right, total: r.total || queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, autoGrade: null, log: [], dir: r.dir || null, mode: r.mode || null };
+    S = { queue, idx: Math.min(r.idx, queue.length - 1), right: r.right, total: r.total || queue.length, current: null, answered: false, res: null, grade: null, idk: false, rating: null, autoGrade: null, log: [], dir: r.dir || null, mode: r.mode || null, options: r.options || null };
     renderQuestion(true);   // keep the saved direction/mode — backgrounding must not re-roll the question
   }
 
@@ -1156,6 +1156,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     S.answered = false; S.idk = false; S.res = null; S.rating = null; S.typed = null;
     if (!keep || !S.dir) S.dir = pickDir();
     if (!keep || !S.mode) S.mode = pickMode();
+    if (!keep) S.options = null;   // a new card gets fresh MC options; a resume keeps the saved set
     S.speak = { phase: "ready", heard: "", note: "", rec: null };
     renderCard();
     if (!S.endless) saveResume();   // persist a finite session so she can resume within 24h
@@ -1184,7 +1185,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="study__sub">${sub}</div>`;
     let controls;
     if (S.mode === "choice") {
-      controls = `<div class="study__controls"><div class="options">${distractors(c, S.dir)
+      const opts = S.options || (S.options = distractors(c, S.dir));   // fixed per card so backgrounding can't reshuffle the options
+      controls = `<div class="study__controls"><div class="options">${opts
         .map((o) => `<button class="option" data-act="pick-option" data-val="${esc(o)}">${esc(o)}</button>`).join("")}</div>
         <button class="idk-link" data-act="idk">I don't know</button></div>`;
     } else if (S.mode === "speak") {
